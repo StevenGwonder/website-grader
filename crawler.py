@@ -3,7 +3,7 @@ from typing import Optional, Dict, List, Set
 from urllib.parse import urlparse, urljoin
 import time
 import re
-import requests as req
+from curl_cffi import requests as req
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 
@@ -61,10 +61,13 @@ class CrawlResult:
                         links.add(full_url)
         return links
 
-def _fetch_page(url: str, timeout: int = 10) -> PageData:
+def _fetch_page(url: str, timeout: int = 15, session=None) -> PageData:
     start = time.monotonic()
     try:
-        resp = req.get(url, timeout=timeout, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'})
+        if session:
+            resp = session.get(url, timeout=timeout)
+        else:
+            resp = req.get(url, timeout=timeout, impersonate="chrome")
         ttfb_ms = (time.monotonic() - start) * 1000
         return PageData(
             url=url,
@@ -87,23 +90,24 @@ def _extract_internal_links(soup: BeautifulSoup, base_url: str, base_domain: str
             links.add(full_url)
     return list(links)
 
-def crawl_site(url: str, max_pages: int = 5, timeout: int = 10) -> CrawlResult:
+def crawl_site(url: str, max_pages: int = 5, timeout: int = 15) -> CrawlResult:
     if not url.startswith(('http://', 'https://')):
         url = 'https://' + url
     result = CrawlResult(base_url=url)
+    session = req.Session(impersonate="chrome")
 
-    homepage = _fetch_page(url, timeout)
+    homepage = _fetch_page(url, timeout, session)
     if homepage.error:
         result.error = homepage.error
         return result
     result.pages[url] = homepage
 
     robots_url = urljoin(url, '/robots.txt')
-    robots = _fetch_page(robots_url, timeout)
+    robots = _fetch_page(robots_url, timeout, session)
     result.robots_txt = robots.html
 
     sitemap_url = urljoin(url, '/sitemap.xml')
-    sitemap = _fetch_page(sitemap_url, timeout)
+    sitemap = _fetch_page(sitemap_url, timeout, session)
     result.sitemap_xml = sitemap.html
     if sitemap.soup:
         try:
@@ -127,7 +131,7 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 10) -> CrawlResult:
         next_url = to_crawl.pop(0)
         if next_url in crawled:
             continue
-        page = _fetch_page(next_url, timeout)
+        page = _fetch_page(next_url, timeout, session)
         result.pages[next_url] = page
         crawled.add(next_url)
         if not page.error and page.soup:

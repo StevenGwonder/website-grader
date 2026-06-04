@@ -4,7 +4,7 @@ import json
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse, urljoin
 
-import requests as req
+from curl_cffi import requests as req
 from bs4 import BeautifulSoup
 
 from .base import CheckResult, Severity, CheckCategory
@@ -341,7 +341,7 @@ class TechnicalChecks(CheckCategory):
         headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
         for link in all_links:
             try:
-                resp = req.head(link, headers=headers, timeout=5, allow_redirects=True)
+                resp = req.head(link, timeout=5, allow_redirects=True, impersonate="chrome")
                 if resp.status_code >= 400:
                     broken.append({"url": link, "status": resp.status_code})
             except Exception:
