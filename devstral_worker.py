@@ -18,7 +18,7 @@ import requests
 
 OLLAMA_BASE = "https://ollama.com/v1"
 MODEL = "devstral-small-2:24b"
-FALLBACK_MODEL = "devstral-2:123b"
+FALLBACK_MODEL = "devstral-small-2:24b"  # Same model — Sierra takes over on failure, no model switch
 MAX_TOKENS = 4000
 TEMPERATURE = 0.3
 TIMEOUT = 180
