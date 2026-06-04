@@ -10,9 +10,8 @@ Usage: python app.py (runs on port 5000)
 import json
 import os
 import re
-import time
 from datetime import datetime
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify
 import requests as req
 from bs4 import BeautifulSoup
 
@@ -48,19 +47,15 @@ def fetch_page(url):
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
-    # Try HTTPS
-    try:
-        resp = req.get(url, headers=headers, timeout=10, allow_redirects=True, verify=True)
-        return resp.text, resp.url, None
-    except Exception:
-        pass
-    # Try HTTP fallback
-    http_url = url.replace("https://", "http://", 1)
-    try:
-        resp = req.get(http_url, headers=headers, timeout=10, allow_redirects=True)
-        return resp.text, resp.url, None
-    except Exception as e:
-        return "", url, str(e)
+    last_error = None
+    for candidate in (url, url.replace("https://", "http://", 1)):
+        try:
+            resp = req.get(candidate, headers=headers, timeout=10, allow_redirects=True)
+            return resp.text, resp.url, None
+        except Exception as e:
+            last_error = e
+            continue
+    return "", url, str(last_error)
 
 def grade_website(url):
     """Grade a website on 5 criteria. Returns a report dict."""
@@ -316,8 +311,7 @@ a:hover { text-decoration: underline; }
 HOME_PAGE = """
 <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Website Grader — Free Instant Website Quality Report</title>
-<style>BASE_CSS</style></head>
-<body><div class="gradient-bg"><div class="container">
+<style>BASE_CSS</style></head><body><div class="gradient-bg"><div class="container">
     <h1>Website Grader</h1>
     <p class="subtitle">Get an instant quality report for any website. Free.</p>
     <form action="/grade" method="post" class="search-box" id="gradeForm">
@@ -336,18 +330,7 @@ HOME_PAGE = """
         <p style="color:#666; margin-top:24px; font-size:0.9em;">Powered by AI-driven web analysis. No signup required.</p>
     </div>
 </div><footer>© 2026 Website Grader. Built for small businesses.</footer></div></body></html>
-"""
-
-LOADING_PAGE = """
-<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Grading...</title><style>BASE_CSS</style></head><body><div class="gradient-bg"><div class="container">
-    <div class="loading">
-        <div class="spinner"></div>
-        <h2>Grading URL</h2>
-        <p style="color:#666; margin-top:8px;">Analyzing website quality... this takes a few seconds.</p>
-    </div>
-</div></div></body></html>
-"""
+""".replace("BASE_CSS", BASE_CSS)
 
 def render_result(report):
     """Render the result page from a report dict."""
@@ -430,23 +413,21 @@ def render_result(report):
         <a href="/">← Grade another website</a>
     </div>
 </div><footer>© 2026 Website Grader</footer></div></body></html>
-"""
+""".replace("BASE_CSS", BASE_CSS)
 
 # ─── Routes ──────────────────────────────────────────────────────────
 
 @app.route("/")
 def home():
-    return HOME_PAGE.replace("BASE_CSS", BASE_CSS)
+    return HOME_PAGE
 
 @app.route("/grade", methods=["POST"])
 def grade():
     url = request.form.get("url", "").strip()
     if not url:
-        return render_template_string(HOME_PAGE.replace("BASE_CSS", BASE_CSS))
-    # Show loading page, then redirect to results via JS
+        return HOME_PAGE
     report = grade_website(url)
-    page = render_result(report)
-    return page.replace("BASE_CSS", BASE_CSS)
+    return render_result(report)
 
 @app.route("/capture", methods=["POST"])
 def capture():
@@ -480,4 +461,4 @@ def health():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=port)
