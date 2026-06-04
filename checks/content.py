@@ -191,7 +191,7 @@ class ContentChecks(CheckCategory):
                             if isinstance(item, dict) and item.get('@type') == 'FAQPage':
                                 faq_found = True
                                 break
-                except:
+                except Exception:
                     continue
 
         if faq_found:

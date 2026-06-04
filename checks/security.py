@@ -81,8 +81,6 @@ Header always set Referrer-Policy "strict-origin-when-cross-origin"""
                 score=100,
                 detail="Site is not HTTPS, mixed content check skipped",
                 recommendation="Serve your site over HTTPS first",
-                fix_difficulty="N/A",
-                impact_estimate="N/A"
             )
 
         soup = homepage.soup

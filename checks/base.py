@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from typing import Optional, List
 
 class Severity(Enum):
     CRITICAL = "critical"
@@ -18,7 +18,7 @@ class CheckResult:
     passed: bool
     score: int
     detail: str
-    recommendation: str
+    recommendation: str = ""
     fix_code: Optional[str] = None
     fix_difficulty: str = ""
     impact_estimate: str = ""

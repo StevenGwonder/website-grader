@@ -49,7 +49,7 @@ class LocalSeoChecks(CheckCategory):
             ld_json = json.loads(''.join(soup.find('script', type='application/ld+json').contents))
             if isinstance(ld_json, dict) and ld_json.get('@type') == 'LocalBusiness':
                 name = ld_json.get('name')
-        except:
+        except Exception:
             pass
         if not name:
             name = soup.title.string if soup.title else None
@@ -122,6 +122,7 @@ class LocalSeoChecks(CheckCategory):
 
     def _check_localbusiness_schema(self, page) -> CheckResult:
         soup = page.soup
+        schema_fix = '<script type="application/ld+json">{\n  "@context": "https://schema.org",\n  "@type": "LocalBusiness",\n  "name": "Your Business Name",\n  "address": {\n    "@type": "PostalAddress",\n    "streetAddress": "123 Main St",\n    "addressLocality": "City",\n    "addressRegion": "ST",\n    "postalCode": "12345"\n  },\n  "telephone": "+123****7890",\n  "geo": {\n    "@type": "GeoCoordinates",\n    "latitude": "40.7128",\n    "longitude": "-74.0060"\n  },\n  "openingHoursSpecification": [\n    {\n      "@type": "OpeningHoursSpecification",\n      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],\n      "opens": "09:00",\n      "closes": "17:00"\n    }\n  ]\n}</script>'
         if not soup:
             return CheckResult(
                 check_id="local_seo_localbusiness_schema",
@@ -132,7 +133,7 @@ class LocalSeoChecks(CheckCategory):
                 score=0,
                 detail="No LocalBusiness schema found",
                 recommendation="Add LocalBusiness schema markup to your homepage.",
-                fix_code='<script type="application/ld+json">{\n  "@context": "https://schema.org",\n  "@type": "LocalBusiness",\n  "name": "Your Business Name",\n  "address": {\n    "@type": "PostalAddress",\n    "streetAddress": "123 Main St",\n    "addressLocality": "City",\n    "addressRegion": "ST",\n    "postalCode": "12345"\n  },\n  "telephone": "+1234567890",\n  "geo": {\n    "@type": "GeoCoordinates",\n    "latitude": "40.7128",\n    "longitude": "-74.0060"\n  },\n  "openingHoursSpecification": [\n    {\n      "@type": "OpeningHoursSpecification",\n      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],\n      "opens": "09:00",\n      "closes": "17:00"\n    }\n  ]\n}</script>'
+                fix_code=schema_fix
             )
 
         required_fields = ["name", "address", "telephone", "geo", "openingHoursSpecification"]
@@ -148,9 +149,9 @@ class LocalSeoChecks(CheckCategory):
                             if field in ld_json:
                                 found_fields += 1
                         break
-                except:
+                except Exception:
                     continue
-        except:
+        except Exception:
             pass
 
         score = int((found_fields / 5) * 100)
@@ -166,11 +167,12 @@ class LocalSeoChecks(CheckCategory):
             score=score,
             detail=detail,
             recommendation=recommendation,
-            fix_code='<script type="application/ld+json">{\n  "@context": "https://schema.org",\n  "@type": "LocalBusiness",\n  "name": "Your Business Name",\n  "address": {\n    "@type": "PostalAddress",\n    "streetAddress": "123 Main St",\n    "addressLocality": "City",\n    "addressRegion": "ST",\n    "postalCode": "12345"\n  },\n  "telephone": "+1234567890",\n  "geo": {\n    "@type": "GeoCoordinates",\n    "latitude": "40.7128",\n    "longitude": "-74.0060"\n  },\n  "openingHoursSpecification": [\n    {\n      "@type": "OpeningHoursSpecification",\n      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],\n      "opens": "09:00",\n      "closes": "17:00"\n    }\n  ]\n}</script>'
+            fix_code=schema_fix if not passed else None
         )
 
     def _check_maps_embed(self, page) -> CheckResult:
         soup = page.soup
+        maps_fix = '<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.21537462995!2d-74.00597278459418!3d40.71277567933012!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25a27e2f2b5e9%3A0x4d7f95e9d7f95e9d!2sYour%20Business%20Name!5e0!3m2!1sen!2sus!4v1234567890123" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>'
         if not soup:
             return CheckResult(
                 check_id="local_seo_maps_embed",
@@ -181,7 +183,7 @@ class LocalSeoChecks(CheckCategory):
                 score=0,
                 detail="No Google Maps embed found",
                 recommendation="Embed a Google Map on your contact page.",
-                fix_code='<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.21537462995!2d-74.00597278459418!3d40.71277567933012!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25a27e2f2b5e9%3A0x4d7f95e9d7f95e9d!2sYour%20Business%20Name!5e0!3m2!1sen!2sus!4v1234567890123" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>'
+                fix_code=maps_fix
             )
 
         iframe = soup.find('iframe', src=True)
@@ -198,7 +200,7 @@ class LocalSeoChecks(CheckCategory):
             score=score,
             detail=detail,
             recommendation=recommendation,
-            fix_code='<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.21537462995!2d-74.00597278459418!3d40.71277567933012!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25a27e2f2b5e9%3A0x4d7f95e9d7f95e9d!2sYour%20Business%20Name!5e0!3m2!1sen!2sus!4v1234567890123" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>'
+            fix_code=maps_fix if not passed else None
         )
 
     def _check_service_area(self, page) -> CheckResult:

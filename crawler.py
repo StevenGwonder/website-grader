@@ -113,7 +113,7 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 10) -> CrawlResult:
                 loc = u.find('sm:loc', namespaces=ns)
                 if loc and loc.text:
                     result.sitemap_urls.append(loc.text)
-        except:
+        except Exception:
             pass
 
     internal_links = _extract_internal_links(homepage.soup, url, result.base_domain)

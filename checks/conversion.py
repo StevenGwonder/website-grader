@@ -38,10 +38,9 @@ class ConversionChecks(CheckCategory):
             category=self.category_name,
             severity=Severity.MEDIUM,
             passed=passed,
-            score=2 if passed else 0,
+            score=100 if passed else 0,
             detail=detail,
             recommendation="Add social media links to build trust and engagement.",
-            fix_code=None,
             fix_difficulty="Easy",
             impact_estimate="Low"
         )
@@ -74,7 +73,7 @@ class ConversionChecks(CheckCategory):
             category=self.category_name,
             severity=Severity.HIGH,
             passed=passed,
-            score=3 if passed else 0,
+            score=100 if passed else 0,
             detail=detail,
             recommendation="Install analytics to track visitor behavior and conversions.",
             fix_code=fix_code,
@@ -101,10 +100,9 @@ class ConversionChecks(CheckCategory):
             category=self.category_name,
             severity=Severity.HIGH,
             passed=passed,
-            score=3 if passed else 0,
+            score=100 if passed else 0,
             detail=detail,
             recommendation="Add clear call-to-action buttons/links to guide users.",
-            fix_code=None,
             fix_difficulty="Easy",
             impact_estimate="High"
         )
@@ -130,10 +128,9 @@ class ConversionChecks(CheckCategory):
             category=self.category_name,
             severity=Severity.MEDIUM,
             passed=passed,
-            score=2 if passed else 0,
+            score=100 if passed else 0,
             detail=detail,
             recommendation="Add trust signals like licenses, certifications, or years in business.",
-            fix_code=None,
             fix_difficulty="Easy",
             impact_estimate="Medium"
         )
@@ -156,10 +153,9 @@ class ConversionChecks(CheckCategory):
                     category=self.category_name,
                     severity=Severity.MEDIUM,
                     passed=True,
-                    score=2,
+                    score=100,
                     detail=detail,
                     recommendation="Keep your contact form simple and accessible.",
-                    fix_code=None,
                     fix_difficulty="Easy",
                     impact_estimate="Medium"
                 )
@@ -172,7 +168,6 @@ class ConversionChecks(CheckCategory):
             score=0,
             detail="No contact form found",
             recommendation="Add a contact form to make it easy for visitors to reach you.",
-            fix_code=None,
             fix_difficulty="Easy",
             impact_estimate="Medium"
         )
