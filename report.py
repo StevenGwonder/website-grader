@@ -1,105 +1,285 @@
 #!/usr/bin/env python3
-"""HTML report generator — self-contained, NWP branded, printable."""
+"""
+HTML report generator — self-contained, NWP branded, printable.
+Implements a next-generation dark dashboard with orange/blue brand colors,
+explicit "Where" & "Why" structured outputs, and an AI Bridge payload exporter.
+"""
+import json
 from checks.base import Severity
 
 # NWP brand colors
-BG = "#0a0a0a"
-CARD = "#1a1a2e"
-BORDER = "#2a2a4e"
-ORANGE = "#D97548"
-BLUE = "#60CFF4"
-TEXT = "#e0e0e8"
-MUTED = "#888"
+BG = "#0b0f19"         # Deep space dark blue-black
+CARD = "#111827"       # Dark grey-blue card background
+BORDER = "#1f2937"     # Muted border
+ORANGE = "#f97316"     # Accent orange
+BLUE = "#38bdf8"       # Accent blue
+TEXT = "#f3f4f6"       # Light grey text
+MUTED = "#9ca3af"      # Muted grey text
 
 SEVERITY_COLORS = {
-    Severity.CRITICAL: "#ef4444",
-    Severity.HIGH: "#f59e0b",
-    Severity.MEDIUM: "#60CFF4",
-    Severity.LOW: "#888",
-    Severity.INFO: "#555",
+    Severity.CRITICAL: "#ef4444", # Rose red
+    Severity.HIGH: "#f59e0b",     # Amber
+    Severity.MEDIUM: "#38bdf8",   # Sky blue
+    Severity.LOW: "#9ca3af",      # Muted grey
+    Severity.INFO: "#6b7280",     # Muted light grey
+}
+
+# Extensive mapping of check IDs to their professional "Why It Matters" business impact
+WHY_MAP = {
+    # Technical SEO
+    "tech_meta_title": "Search engines display the title tag as the clickable headline in search results. A well-written, keyword-optimized title is the single most important on-page ranking factor and directly determines your click-through rate (CTR) and initial keyword relevance.",
+    "tech_meta_desc": "The meta description serves as organic ad copy in search results. A compelling, concise summary with an actionable CTA can increase clicks by up to 30%, driving traffic even if your organic ranking position does not change.",
+    "tech_headings": "Proper heading tags (H1-H6) act as a table of contents for crawlers and screen readers. Correct hierarchy allows search engines to understand the core topics of your page and prevents indexing confusion.",
+    "tech_canonical": "Canonical tags guide search engines to the preferred version of a page, preventing duplicate content penalties caused by multiple URL variations (such as HTTP/HTTPS, www/non-www, or tracking parameters).",
+    "tech_robots_meta": "Robots meta tags control search indexer behavior at the page level. Misconfigured tags can lead to search engine lockout, preventing critical landing pages from ever appearing in search listings.",
+    "tech_schema": "Structured data (JSON-LD) translates human-readable content into machine-readable formats. It enables rich snippets (stars, FAQs, event details) in search results, increasing search visibility and user trust.",
+    "tech_og_tags": "Open Graph tags format how your website links appear when shared on social platforms like Facebook, LinkedIn, and Slack. Proper tags ensure your brand has professional visual cards that drive social clicks.",
+    "tech_twitter_cards": "Twitter Card tags ensure your links render with high-impact visual previews on Twitter/X, maximizing engagement and preventing plain, text-only link shares.",
+    "tech_favicon": "Favicons appear in browser tabs, bookmarks, and mobile search listings. They build brand recall, establish digital professionalism, and increase user trust during browsing sessions.",
+    "tech_sitemap": "An XML sitemap acts as a roadmap for search indexers, ensuring all page URLs are discovered and indexed, including deep-nested content that crawler bots might otherwise miss.",
+    "tech_robots_txt": "The robots.txt file manages crawler search budgets and access routes. Misconfigurations can block critical bots, while correct configuration directs crawlers to index your most valuable pages.",
+    "tech_broken_links": "Broken links (404/500 errors) frustrate visitors, drain your crawl budget, and signal to search engines that the website is neglected, leading to lower search rankings.",
+    "tech_redirects": "Multiple consecutive redirects add connection latency (TTFB) and dilute link equity (SEO authority). Direct links keep connections fast and pass maximum page authority.",
+    "tech_internal_links": "Internal linking distributes search engine authority (PageRank) across your pages and establishes a logical site architecture, helping search engines crawl and rank deeper pages.",
+    "tech_url_structure": "Clean, readable URL structures containing keywords improve user experience and allow search crawlers to predict page topics from the URL string alone.",
+    "tech_pagination": "Pagination tags (rel=next/prev) clarify relationship flows between paginated lists, preventing search engines from treating list pages as duplicate content.",
+    "tech_breadcrumbs": "Breadcrumbs provide a structural navigation trail for users and search engines, showing the user's location in your site hierarchy and enhancing Google mobile search snippet displays.",
+    
+    # Performance
+    "performance_ttfb": "Time to First Byte measures server response latency. A slow TTFB (>600ms) delays the entire page render cycle, driving up user bounce rates and penalizing search engine rankings.",
+    "performance_page_weight": "Large page payloads consume mobile data and increase load times on slow cellular networks. Keeping page sizes under 1MB ensures immediate access and high conversion rates.",
+    "performance_compression": "Brotli or Gzip compression shrinks text-based assets (HTML, CSS, JS) by up to 70%, dramatically reducing network transfer times and bandwidth consumption.",
+    "performance_cache_headers": "Leveraging browser caching stores static assets locally on user devices, eliminating redundant network calls and making repeat visits feel instantaneous.",
+    "performance_images": "Unoptimized images are the #1 cause of slow websites. Modern formats like WebP or AVIF reduce image file sizes by up to 80% without losing quality, and lazy loading defers offscreen downloads.",
+    "performance_css_js": "Excessive CSS and JS files block rendering and increase main-thread blocking time. Bundling files and using async/defer loading keeps the page interactive during rendering.",
+    "performance_minification": "Minifying code removes comments, formatting, and whitespace, reducing source code sizes and speeding up asset downloads for visitors.",
+    "performance_server_header": "Disclosing specific backend server versions exposes infrastructure details to automated vulnerability scanners, making your server a target for exploits.",
+    
+    # Local SEO
+    "local_seo_nap_extraction": "Name, Address, and Phone (NAP) details establish localized search authority. Search engines crawl this data to confirm your physical business location for local pack matches.",
+    "local_seo_nap_consistency": "Mismatched NAP details across web pages raise trust issues for search algorithms. Identical NAP details confirm listing authenticity, boosting local pack prominence.",
+    "local_seo_localbusiness_schema": "LocalBusiness schema structures business listings directly for indexers. It links business names, geo-coordinates, reviews, and hours, driving business visibility in local packs.",
+    "local_seo_maps_embed": "A Google Map embed confirms physical location relevance, makes navigation easy for local customers, and increases localized authority.",
+    "local_seo_service_area": "Declaring service areas (cities, counties, regions) clarifies business coverage to local searchers, helping match your site with searches in target cities.",
+    "local_seo_city_targeting": "Targeting specific city keywords in titles, headings, and descriptions ensures relevance for geo-modified searches (e.g., 'plumber in Dallas').",
+    "local_seo_review_schema": "Review structured data (AggregateRating) displays star ratings in search results, increasing click-through rates (CTR) and establishing instant digital trust.",
+    "local_seo_gbp_link": "Linking directly to your Google Business Profile page synchronizes on-page local listings with Google Maps data, reinforcing geographic relevance.",
+    
+    # Content Quality
+    "content_word_count": "Thin content (<200 words) fails to provide enough topic depth for search engines to rank the page. Deep content provides answers to customer search intents.",
+    "content_keyword_density": "Over-optimization or keyword stuffing leads to search engine penalties. Keeping target keyword density between 1-3% ensures natural reading and search relevance.",
+    "content_readability": "Plain, clear reading text improves accessibility, increases time-on-site, and satisfies screen readers and voice searchers.",
+    "content_faq": "FAQ sections answer customer queries, keep users on your page longer, and capture high-value organic search real estate like 'People Also Ask' rich snippets.",
+    "content_eeat": "E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness) is Google's core framework for content evaluation. Author bios, trust badges, and credentials build human and algorithmic trust.",
+    "content_uniqueness": "Internal duplicate content confuses search engine indexers regarding which page to rank, diluting organic search performance across your site.",
+    "content_title_alignment": "Mismatched titles and page content disappoint visitors and lead to high bounce rates. Direct semantic alignment confirms relevance, satisfying search algorithms.",
+    
+    # Security
+    "ssl": "SSL encryption (HTTPS) is a critical Google ranking factor and secure web baseline. It protects user inputs from interception and prevents browser warnings from scaring away visitors.",
+    "security_headers": "Defensive HTTP headers (CSP, HSTS, X-Frame) protect your website against client-side scripting attacks, cross-site scripting (XSS), clickjacking, and mime-sniffing exploits.",
+    "mixed_content": "Mixed content occurs when an HTTPS page requests resource files over unencrypted HTTP. Modern browsers block these mixed assets, triggering security warnings.",
+    
+    # Accessibility
+    "accessibility_alt_text": "Alternative text describes graphics to visually impaired users and screen-readers. Alt tags also index images for search engines, capturing image search traffic.",
+    "accessibility_form_labels": "Every input field must have an associated text label tag. Labels guide screen readers, assist autofill features, and improve conversion flow.",
+    "accessibility_heading_order": "A clean H1->H2->H3 heading sequence provides a logical reading flow, helping assistive readers parse page layout.",
+    "accessibility_aria_labels": "ARIA labels clarify interactive button actions that contain only graphics, allowing screen readers and autonomous bots to parse button functions.",
+    "accessibility_skip_nav": "A skip navigation link allows keyboard-only users to bypass navigation menus and jump directly to main content, fulfilling key WCAG requirements.",
+    
+    # Conversion
+    "conversion_social_links": "Social media links connect users to your active social pages, building brand authority, and encouraging customer review research.",
+    "conversion_analytics": "Tracking tags (GA4, Tag Manager, Facebook Pixel) provide visitor flow data, allowing you to measure conversion rates and optimize ad campaigns.",
+    "conversion_cta_elements": "Clear call-to-action buttons (e.g., 'Book a Call', 'Request Quote') guide visitors through conversion flows, transforming passive readers into active sales leads.",
+    "conversion_trust_signals": "Trust badges, certifications, professional accreditations, and license numbers address buyer anxiety and increase form conversion rates.",
+    "conversion_contact_form": "On-page contact forms lower the effort required to contact you, maximizing lead capture volume compared to simple email links."
 }
 
 def _score_color(score):
-    if score >= 80: return "#22c55e"
-    if score >= 60: return "#f59e0b"
+    if score >= 80: return "#10b981" # Emerald Green
+    if score >= 60: return "#f59e0b" # Amber
     if score >= 40: return ORANGE
-    return "#ef4444"
+    return "#ef4444"                 # Rose Red
 
 def _grade_color(grade):
-    return {"A": "#22c55e", "B": "#84cc16", "C": "#f59e0b", "D": ORANGE, "F": "#ef4444"}.get(grade, "#ef4444")
+    return {
+        "A": "#10b981", 
+        "B": "#84cc16", 
+        "C": "#f59e0b", 
+        "D": ORANGE, 
+        "F": "#ef4444"
+    }.get(grade, "#ef4444")
 
 def _bar(label, score, weight):
     color = _score_color(score)
     return f"""
     <div class="bar-row">
       <span class="bar-label">{label} <small>({weight}%)</small></span>
-      <div class="bar-track"><div class="bar-fill" style="width:{score}%;background:{color}"></div></div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:{score}%;background:{color}; box-shadow: 0 0 10px {color}80;"></div>
+      </div>
       <span class="bar-score">{score}</span>
     </div>"""
 
 def _check_row(r):
-    icon = "✅" if r.passed else "❌"
-    color = SEVERITY_COLORS.get(r.severity, "#888")
-    fix = ""
+    icon = "✓" if r.passed else "✗"
+    status_class = "passed" if r.passed else "failed"
+    color = SEVERITY_COLORS.get(r.severity, "#9ca3af")
+    
+    # Extract location (where) & impact (why)
+    where_text = r.detail
+    why_text = WHY_MAP.get(r.check_id, f"Ensures optimal compliance with standard best practices in the {r.category} domain.")
+    
+    fix_section = ""
+    if not r.passed:
+        fix_section = f"""
+        <div class="check-section check-how">
+          <span class="section-title">🛠️ How to Fix (Recommendation)</span>
+          <span class="section-val">{r.recommendation or 'Implement programmatic corrections in accordance with standard web layouts.'}</span>
+        </div>
+        """
+        
+    code_section = ""
     if r.fix_code and not r.passed:
-        fix = f'<details class="fix"><summary>Fix code</summary><pre>{r.fix_code}</pre></details>'
+        code_section = f"""
+        <div class="fix-code-block">
+          <div class="code-header">
+            <span>🔧 Suggested Code Correction</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy Code</button>
+          </div>
+          <pre><code>{r.fix_code}</code></pre>
+        </div>
+        """
+
+    # If it is failed, we start it expanded by default. Otherwise collapsed.
+    expanded_class = "expanded" if not r.passed else ""
+
     return f"""
-    <div class="check">
-      <span class="check-icon">{icon}</span>
-      <div>
-        <div class="check-name"><span class="sev-dot" style="background:{color}"></span>{r.check_name}</div>
-        <div class="check-detail">{r.detail}</div>
-        {f'<div class="check-rec">{r.recommendation}</div>' if r.recommendation and not r.passed else ''}
-        {fix}
+    <div class="check-card {status_class} {expanded_class}" data-category="{r.category}" data-passed="{str(r.passed).lower()}" data-severity="{r.severity.value}">
+      <div class="check-header" onclick="toggleCard(this)">
+        <span class="check-status-badge {status_class}">{icon}</span>
+        <span class="check-name">{r.check_name}</span>
+        <div class="check-badges">
+          <span class="badge category-badge">{r.category}</span>
+          <span class="badge severity-badge" style="background:{color}15; color:{color}; border: 1px solid {color}30;">{r.severity.value.upper()}</span>
+        </div>
+        <span class="accordion-arrow">▼</span>
+      </div>
+      <div class="check-body">
+        <div class="check-grid">
+          <div class="check-section check-where">
+            <span class="section-title">🔍 Where (Location / Value Found)</span>
+            <span class="section-val">{where_text}</span>
+          </div>
+          <div class="check-section check-why">
+            <span class="section-title">💡 Why (Business & AI Impact)</span>
+            <span class="section-val">{why_text}</span>
+          </div>
+        </div>
+        {fix_section}
+        {code_section}
       </div>
     </div>"""
 
 def _nap_table(crawl_result, all_results):
-    """NAP consistency table from local SEO check data."""
     nap_result = next((r for r in all_results if r.check_id == "local_seo_nap_consistency"), None)
     if not nap_result or not nap_result.data.get("nap_per_page"):
         return ""
     rows = ""
     for url, nap in nap_result.data["nap_per_page"].items():
         short_url = url.replace("https://", "").replace("http://", "")[:40]
-        rows += f"<tr><td>{short_url}</td><td>{nap.get('name') or '—'}</td><td>{nap.get('phone') or '—'}</td><td>{nap.get('address') or '—'[:40]}</td></tr>"
+        rows += f"""
+        <tr>
+          <td><strong>{short_url}</strong></td>
+          <td>{nap.get('name') or '—'}</td>
+          <td>{nap.get('phone') or '—'}</td>
+          <td>{nap.get('address') or '—'}</td>
+        </tr>"""
     return f"""
-    <h2>NAP Consistency</h2>
-    <table class="nap-table"><tr><th>Page</th><th>Name</th><th>Phone</th><th>Address</th></tr>{rows}</table>"""
+    <div class="table-container">
+      <table class="nap-table">
+        <thead>
+          <tr>
+            <th>Page Link</th>
+            <th>Name (Schema/Title)</th>
+            <th>Phone Extracted</th>
+            <th>Address Extracted</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows}
+        </tbody>
+      </table>
+    </div>"""
 
 def _perf_table(crawl_result):
-    """Performance metrics from homepage."""
     hp = crawl_result.homepage
     if not hp:
         return ""
-    size_kb = len(hp.html) // 1024
+    size_kb = len(hp.html) / 1024
     encoding = hp.headers.get("content-encoding", "none")
     cache = "yes" if hp.headers.get("cache-control") else "no"
     return f"""
-    <h2>Performance Metrics</h2>
-    <table class="perf-table">
-      <tr><td>TTFB</td><td>{hp.ttfb_ms:.0f}ms</td></tr>
-      <tr><td>Page Weight</td><td>{size_kb}KB</td></tr>
-      <tr><td>Compression</td><td>{encoding}</td></tr>
-      <tr><td>Cache Headers</td><td>{cache}</td></tr>
-    </table>"""
+    <div class="table-container">
+      <table class="perf-table">
+        <thead>
+          <tr>
+            <th>Metric Dimension</th>
+            <th>Calculated Value</th>
+            <th>Standard Reference</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Time to First Byte (TTFB)</strong></td>
+            <td class="perf-metric">{hp.ttfb_ms:.0f}ms</td>
+            <td>&lt; 200ms (Excellent) | &lt; 600ms (Good)</td>
+          </tr>
+          <tr>
+            <td><strong>Page Payload Weight</strong></td>
+            <td class="perf-metric">{size_kb:.1f} KB</td>
+            <td>&lt; 500 KB (Optimal) | &lt; 1.5 MB (Acceptable)</td>
+          </tr>
+          <tr>
+            <td><strong>Server Data Compression</strong></td>
+            <td class="perf-metric">{encoding}</td>
+            <td>Gzip or Brotli (Required)</td>
+          </tr>
+          <tr>
+            <td><strong>Cache Control Policy</strong></td>
+            <td class="perf-metric">{cache.upper()}</td>
+            <td>Cache headers configured (Required)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>"""
 
 def _action_plan(all_results):
-    """Top 10 prioritized fixes sorted by severity weight / effort."""
     sev_weight = {Severity.CRITICAL: 4, Severity.HIGH: 3, Severity.MEDIUM: 2, Severity.LOW: 1, Severity.INFO: 0.5}
     failed = [r for r in all_results if not r.passed]
-    # Sort by severity weight descending
     failed.sort(key=lambda r: sev_weight.get(r.severity, 0), reverse=True)
     top = failed[:10]
     if not top:
-        return '<div class="card"><p style="color:#22c55e;font-size:1.2em">🎉 No critical issues found!</p></div>'
+        return '<div class="passed-alert">🎉 **Congratulations!** No critical or failed issues were detected on this site.</div>'
     items = ""
     for i, r in enumerate(top, 1):
-        items += f'<div class="action-item"><span class="action-num">{i}</span><div><strong>{r.check_name}</strong> — {r.detail}<br><small>{r.recommendation}</small></div></div>'
-    return f'<h2>Prioritized Action Plan</h2><div class="action-list">{items}</div>'
+        color = SEVERITY_COLORS.get(r.severity, "#9ca3af")
+        items += f"""
+        <div class="action-item">
+          <div class="action-num-badge">{i}</div>
+          <div class="action-content">
+            <div class="action-meta">
+              <span class="action-title">{r.check_name}</span>
+              <span class="action-badge" style="background:{color}15; color:{color}; border: 1px solid {color}30;">{r.severity.value.upper()}</span>
+            </div>
+            <div class="action-desc">
+              <strong>Problem:</strong> {r.detail}<br>
+              <strong>Resolution:</strong> {r.recommendation}
+            </div>
+          </div>
+        </div>"""
+    return f"""<div class="action-plan-list">{items}</div>"""
 
 def generate_report(crawl_result, all_results, score_data, fixes, url):
-    """Generate self-contained HTML report."""
     grade = score_data["grade"]
     score = score_data["overall_score"]
     gcolor = _grade_color(grade)
@@ -109,76 +289,1187 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     perf = _perf_table(crawl_result)
     plan = _action_plan(all_results)
     failed_count = sum(1 for r in all_results if not r.passed)
+    passed_count = len(all_results) - failed_count
     total_count = len(all_results)
+    high_failed_count = sum(1 for r in all_results if not r.passed and r.severity in (Severity.CRITICAL, Severity.HIGH))
+    
     date = crawl_result.homepage.headers.get("date", "") if crawl_result.homepage else ""
+    if not date:
+        import datetime
+        date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
 
-    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Website Audit: {url} — Score {score}/100</title>
-<style>
-* {{ margin:0; padding:0; box-sizing:border-box }}
-body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:{BG}; color:{TEXT}; line-height:1.6 }}
-.container {{ max-width:900px; margin:0 auto; padding:40px 20px }}
-h1 {{ font-size:2.4em; color:{ORANGE}; margin-bottom:4px }}
-h2 {{ font-size:1.3em; color:{BLUE}; margin:24px 0 12px }}
-.subtitle {{ color:{MUTED}; margin-bottom:24px }}
-.card {{ background:{CARD}; border:1px solid {BORDER}; border-radius:12px; padding:24px; margin-bottom:20px }}
-.score-box {{ text-align:center; margin-bottom:20px }}
-.score-num {{ font-size:3.5em; font-weight:800; color:{gcolor} }}
-.score-grade {{ font-size:2em; font-weight:700; color:{gcolor} }}
-.score-meta {{ color:{MUTED}; margin-top:8px }}
-.bar-row {{ display:flex; align-items:center; gap:12px; margin-bottom:8px }}
-.bar-label {{ width:180px; font-size:0.9em; text-align:right }}
-.bar-label small {{ color:{MUTED} }}
-.bar-track {{ flex:1; background:{BORDER}; border-radius:8px; height:24px; overflow:hidden }}
-.bar-fill {{ height:100%; border-radius:8px; transition:width 0.3s }}
-.bar-score {{ width:40px; text-align:left; font-weight:600 }}
-.check {{ display:flex; gap:14px; padding:14px 0; border-bottom:1px solid {BORDER} }}
-.check:last-child {{ border-bottom:none }}
-.check-icon {{ font-size:1.4em; flex-shrink:0 }}
-.check-name {{ font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:8px }}
-.sev-dot {{ width:8px; height:8px; border-radius:50%; display:inline-block }}
-.check-detail {{ font-size:0.9em; color:{MUTED}; margin-bottom:4px }}
-.check-rec {{ font-size:0.85em; color:{BLUE}; margin-top:4px }}
-.fix {{ margin-top:8px }}
-.fix summary {{ cursor:pointer; color:{ORANGE}; font-size:0.85em }}
-.fix pre {{ background:{BG}; border:1px solid {BORDER}; border-radius:8px; padding:12px; overflow-x:auto; font-size:0.8em; margin-top:8px }}
-table {{ width:100%; border-collapse:collapse; margin-bottom:20px }}
-th,td {{ padding:10px; text-align:left; border-bottom:1px solid {BORDER}; font-size:0.9em }}
-th {{ color:{BLUE} }}
-.nap-table td, .perf-table td {{ font-size:0.85em }}
-.action-list {{ margin-top:12px }}
-.action-item {{ display:flex; gap:14px; padding:12px 0; border-bottom:1px solid {BORDER} }}
-.action-num {{ font-size:1.5em; font-weight:800; color:{ORANGE}; flex-shrink:0; width:30px }}
-footer {{ text-align:center; padding:30px; color:#555; font-size:0.85em }}
-a {{ color:{BLUE}; text-decoration:none }}
-@media print {{ body {{ background:white; color:black }} .card {{ border:1px solid #ccc }} }}
-</style></head><body><div class="container">
-<h1>Website Audit Report</h1>
-<p class="subtitle">{url} — {date or 'Generated ' + __import__('datetime').datetime.now().strftime('%Y-%m-%d')}</p>
+    # Construct clean structured JSON data for AI processing
+    ai_json_payload = {
+        "audit_meta": {
+            "target_url": url,
+            "audit_date": date,
+            "pages_crawled": list(crawl_result.pages.keys()),
+            "overall_score": score,
+            "overall_grade": grade,
+            "checks_summary": {
+                "total": total_count,
+                "passed": passed_count,
+                "failed": failed_count,
+                "critical_and_high_failed": high_failed_count
+            }
+        },
+        "category_scores": {cat: {"score": d["score"], "weight": d["weight"]} for cat, d in score_data["categories"].items()},
+        "failures": [
+            {
+                "check_id": r.check_id,
+                "check_name": r.check_name,
+                "category": r.category,
+                "severity": r.severity.value,
+                "where_value": r.detail,
+                "why_impact": WHY_MAP.get(r.check_id, ""),
+                "how_to_fix": r.recommendation,
+                "fix_code": r.fix_code
+            }
+            for r in all_results if not r.passed
+        ]
+    }
+    
+    # SVG circular gauge stroke-dashoffset calculations
+    # Circumference = 264. Dashoffset = 264 * (1 - score / 100)
+    stroke_offset = 264 * (1 - score / 100.0)
 
-<div class="card score-box">
-  <div class="score-num">{score}<span style="font-size:0.4em;color:{MUTED}">/100</span></div>
-  <div class="score-grade">Grade {grade}</div>
-  <div class="score-meta">{total_count - failed_count}/{total_count} checks passed</div>
-</div>
+    # Load templates from fixes
+    robots_tmpl = fixes.get("templates", {}).get("robots_txt", "")
+    sitemap_tmpl = fixes.get("templates", {}).get("sitemap_xml", "")
+    htaccess_tmpl = fixes.get("templates", {}).get("htaccess_security", "")
 
-<div class="card">
-  <h2>Score Breakdown</h2>
-  {cat_bars}
-</div>
+    # HTML content as a standard string to avoid python f-string escaping errors with CSS/JS brackets
+    html_template = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website Audit Dashboard: {URL} — Score {SCORE}/100</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: {BG};
+      --card: {CARD};
+      --border: {BORDER};
+      --orange: {ORANGE};
+      --blue: {BLUE};
+      --text: {TEXT};
+      --muted: {MUTED};
+      --passed: #10b981;
+      --failed: #ef4444;
+      --gold: #f59e0b;
+      --card-gradient: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+      --orange-glow: rgba(249, 115, 22, 0.15);
+      --blue-glow: rgba(56, 189, 248, 0.15);
+    }
 
-<div class="card">
-  {plan}
-</div>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-{f'<div class="card">{nap}</div>' if nap else ''}
-{f'<div class="card">{perf}</div>' if perf else ''}
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding-bottom: 60px;
+    }
 
-<div class="card">
-  <h2>All Checks ({total_count})</h2>
-  {checks_html}
-</div>
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
 
-<footer>Powered by <strong style="color:{ORANGE}">North Web Pro</strong> — Your guide in the digital wilderness</footer>
-</div></body></html>"""
+    /* Header & Branding */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+    }
+
+    .brand-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-logo {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.8em;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--blue) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 4px;
+    }
+
+    .audit-meta {
+      font-size: 0.9em;
+      color: var(--muted);
+    }
+
+    .audit-target {
+      font-weight: 600;
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    /* Executive Hero Grid */
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .score-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .score-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, {GCOLOR}15 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Circular SVG Gauge */
+    .radial-gauge-container {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      margin-bottom: 16px;
+    }
+
+    .score-radial {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .score-radial-progress {
+      color: {GCOLOR};
+      transition: stroke-dashoffset 1s ease-in-out;
+      filter: drop-shadow(0 0 6px {GCOLOR}80);
+    }
+
+    .radial-text-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .radial-score {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.2em;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .radial-max {
+      font-size: 0.8em;
+      color: var(--muted);
+    }
+
+    .grade-badge {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.4em;
+      font-weight: 800;
+      color: {GCOLOR};
+      border: 2px solid {GCOLOR};
+      padding: 4px 16px;
+      border-radius: 99px;
+      margin-bottom: 16px;
+      background: {GCOLOR}08;
+      box-shadow: 0 0 15px {GCOLOR}20;
+    }
+
+    .quick-stats {
+      font-size: 0.85em;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      width: 100%;
+      padding-top: 16px;
+      display: flex;
+      justify-content: space-around;
+    }
+
+    .quick-stats span strong {
+      color: var(--text);
+    }
+
+    /* Category Breakdown Card */
+    .breakdown-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .breakdown-card h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.3em;
+      font-weight: 700;
+      color: var(--blue);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .bar-label {
+      width: 160px;
+      font-size: 0.85em;
+      font-weight: 600;
+      text-align: right;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .bar-label small {
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .bar-track {
+      flex: 1;
+      background: var(--border);
+      border-radius: 99px;
+      height: 16px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .bar-score {
+      width: 32px;
+      font-size: 0.9em;
+      font-weight: 700;
+      text-align: left;
+    }
+
+    /* Action Plan Dashboard */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 32px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .card h2 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.4em;
+      font-weight: 700;
+      color: var(--orange);
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    .action-plan-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .action-item {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: border-color 0.2s;
+    }
+
+    .action-item:hover {
+      border-color: rgba(249, 115, 22, 0.4);
+    }
+
+    .action-num-badge {
+      background: var(--orange-glow);
+      color: var(--orange);
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.2em;
+      font-weight: 800;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      flex-shrink: 0;
+    }
+
+    .action-content {
+      flex: 1;
+    }
+
+    .action-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .action-title {
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .action-badge {
+      font-size: 0.7em;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .action-desc {
+      font-size: 0.85em;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .action-desc strong {
+      color: var(--text);
+    }
+
+    /* Tabs & Filters bar */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filter-tabs {
+      display: flex;
+      background: rgba(255,255,255,0.03);
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.85em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      background: var(--blue);
+      color: var(--bg);
+      box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3);
+    }
+
+    .search-container {
+      position: relative;
+      flex: 1;
+      max-width: 320px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 10px 16px;
+      padding-left: 36px;
+      border-radius: 10px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85em;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 10px var(--blue-glow);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 0.9em;
+      pointer-events: none;
+    }
+
+    /* Check Cards Grid/List */
+    .checks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .check-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+
+    .check-card:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .check-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      gap: 14px;
+      user-select: none;
+    }
+
+    .check-status-badge {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8em;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .check-status-badge.passed {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--passed);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .check-status-badge.failed {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--failed);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .check-name {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 0.95em;
+    }
+
+    .check-badges {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .badge {
+      font-size: 0.7em;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .category-badge {
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .accordion-arrow {
+      color: var(--muted);
+      font-size: 0.8em;
+      transition: transform 0.2s;
+      margin-left: 8px;
+    }
+
+    /* Accordion Body */
+    .check-body {
+      display: none;
+      padding: 20px;
+      border-top: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    .check-card.expanded .check-body {
+      display: block;
+    }
+
+    .check-card.expanded .accordion-arrow {
+      transform: rotate(180deg);
+    }
+
+    /* Grid for Where and Why */
+    .check-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 16px;
+    }
+
+    .check-section {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .section-title {
+      display: block;
+      font-size: 0.75em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .check-where .section-title {
+      color: var(--blue);
+    }
+
+    .check-why .section-title {
+      color: var(--gold);
+    }
+
+    .check-how .section-title {
+      color: var(--orange);
+    }
+
+    .section-val {
+      font-size: 0.85em;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .check-how {
+      margin-bottom: 16px;
+    }
+
+    /* Code Block Fix styling */
+    .fix-code-block {
+      background: #07090e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+
+    .code-header {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75em;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      color: var(--text);
+      border-color: var(--muted);
+    }
+
+    .fix-code-block pre {
+      padding: 16px;
+      overflow-x: auto;
+    }
+
+    .fix-code-block code {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.8em;
+      color: var(--blue);
+      display: block;
+      white-space: pre;
+    }
+
+    /* Tables general styling */
+    .table-container {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85em;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    th {
+      background: rgba(255,255,255,0.02);
+      font-weight: 700;
+      color: var(--blue);
+      text-transform: uppercase;
+      font-size: 0.75em;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      color: var(--muted);
+    }
+
+    td strong {
+      color: var(--text);
+    }
+
+    .perf-metric {
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: bold;
+      color: var(--orange);
+    }
+
+    /* AI Bridge section */
+    .ai-bridge-box {
+      background: linear-gradient(135deg, rgba(249,115,22,0.05) 0%, rgba(56,189,248,0.05) 100%);
+      border: 1px dashed rgba(56, 189, 248, 0.4);
+      padding: 24px;
+      border-radius: 16px;
+      text-align: center;
+      margin-top: 32px;
+    }
+
+    .ai-bridge-box h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.20em;
+      color: var(--text);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .ai-bridge-box p {
+      font-size: 0.85em;
+      color: var(--muted);
+      margin-bottom: 16px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .action-btn {
+      background: linear-gradient(135deg, var(--orange) 0%, #ea580c 100%);
+      border: none;
+      color: var(--bg);
+      font-weight: 700;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9em;
+      box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+      transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4);
+    }
+
+    /* Code Templates Configuration block */
+    .config-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      margin-bottom: 32px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .config-tab-headers {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .config-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 14px 24px;
+      font-family: inherit;
+      font-size: 0.85em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+
+    .config-tab-btn:hover {
+      color: var(--text);
+    }
+
+    .config-tab-btn.active {
+      color: var(--orange);
+      border-bottom-color: var(--orange);
+    }
+
+    .config-tab-body {
+      padding: 24px;
+    }
+
+    .config-pane {
+      display: none;
+    }
+
+    .config-pane.active {
+      display: block;
+    }
+
+    .config-desc {
+      font-size: 0.85em;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* Global Footer */
+    footer {
+      text-align: center;
+      margin-top: 48px;
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      color: var(--muted);
+      font-size: 0.8em;
+    }
+
+    /* Responsive grid settings */
+    @media (max-width: 768px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
+      .check-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .controls-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .search-container {
+        max-width: 100%;
+      }
+    }
+
+    @media print {
+      body {
+        background-color: #fff;
+        color: #000;
+      }
+      .card, .breakdown-card, .score-card, .check-card {
+        border: 1px solid #ccc;
+        background: #fff;
+        color: #000;
+        box-shadow: none;
+      }
+      .check-body {
+        background: #fafafa;
+        display: block !important;
+      }
+      .copy-btn, .controls-bar, .ai-bridge-box, .copy-btn, .config-tab-headers {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+  
+    <header>
+      <div class="brand-group">
+        <span class="brand-logo">North Web Pro Audit</span>
+        <span class="audit-meta">Target: <a class="audit-target" href="{URL}" target="_blank">{URL}</a></span>
+      </div>
+      <div class="audit-meta" style="text-align: right;">
+        <div>Programmatic Grader v2.0</div>
+        <div>Date: {DATE}</div>
+      </div>
+    </header>
+
+    <!-- Hero Scoreboard -->
+    <div class="hero-grid">
+    
+      <div class="score-card">
+        <div class="grade-badge">GRADE {GRADE}</div>
+        <div class="radial-gauge-container">
+          <svg viewBox="0 0 100 100" class="score-radial">
+            <circle cx="50" cy="50" r="42" stroke="var(--border)" stroke-width="8" fill="transparent"></circle>
+            <circle cx="50" cy="50" r="42" stroke="currentColor" stroke-width="8" fill="transparent" 
+                    stroke-dasharray="264" stroke-dashoffset="{STROKE_OFFSET}" 
+                    stroke-linecap="round" class="score-radial-progress"></circle>
+          </svg>
+          <div class="radial-text-container">
+            <span class="radial-score">{SCORE}</span>
+            <span class="radial-max">/100</span>
+          </div>
+        </div>
+        <div class="quick-stats">
+          <span>Passed: <strong>{PASSED_COUNT}</strong></span>
+          <span>Failed: <strong>{FAILED_COUNT}</strong></span>
+        </div>
+      </div>
+      
+      <div class="breakdown-card">
+        <h3>
+          <span>Domain Scores</span>
+          <span style="font-size: 0.7em; color: var(--muted); font-weight: normal;">Weighted Average Model</span>
+        </h3>
+        {CAT_BARS}
+      </div>
+      
+    </div>
+
+    <!-- Action Plan Card -->
+    <div class="card">
+      <h2>📋 Prioritized Action Roadmap</h2>
+      <p style="font-size: 0.85em; color: var(--muted); margin-bottom: 16px;">
+        These are the top failed checks sorted by programmatic impact. Fix these first to yield the highest visual, speed, and conversion gains.
+      </p>
+      {PLAN}
+    </div>
+
+    <!-- NAP & Performance Tables -->
+    {NAP_SECTION}
+    {PERF_SECTION}
+
+    <!-- Config Templates Section -->
+    <div class="config-card">
+      <div class="config-tab-headers">
+        <button class="config-tab-btn active" onclick="switchConfigTab(this, 'robots-pane')">robots.txt</button>
+        <button class="config-tab-btn" onclick="switchConfigTab(this, 'sitemap-pane')">sitemap.xml</button>
+        <button class="config-tab-btn" onclick="switchConfigTab(this, 'htaccess-pane')">.htaccess Headers</button>
+      </div>
+      <div class="config-tab-body">
+        
+        <div class="config-pane active" id="robots-pane">
+          <div class="config-desc">Copy this configuration into your domain's root <code>robots.txt</code> file to optimize search indexer crawl budgets.</div>
+          <div class="fix-code-block">
+            <div class="code-header">
+              <span>robots.txt</span>
+              <button class="copy-btn" onclick="copyCodeText(this, 'robots-text')">Copy Config</button>
+            </div>
+            <pre><code id="robots-text">{ROBOTS_TMPL}</code></pre>
+          </div>
+        </div>
+
+        <div class="config-pane" id="sitemap-pane">
+          <div class="config-desc">XML sitemap generated dynamically from crawled page links. Host this at <code>/sitemap.xml</code>.</div>
+          <div class="fix-code-block">
+            <div class="code-header">
+              <span>sitemap.xml</span>
+              <button class="copy-btn" onclick="copyCodeText(this, 'sitemap-text')">Copy XML</button>
+            </div>
+            <pre><code id="sitemap-text">{SITEMAP_TMPL}</code></pre>
+          </div>
+        </div>
+
+        <div class="config-pane" id="htaccess-pane">
+          <div class="config-desc">Apache configuration directives to secure session cookie transmissions and establish defense headers.</div>
+          <div class="fix-code-block">
+            <div class="code-header">
+              <span>.htaccess</span>
+              <button class="copy-btn" onclick="copyCodeText(this, 'htaccess-text')">Copy directives</button>
+            </div>
+            <pre><code id="htaccess-text">{HTACCESS_TMPL}</code></pre>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Complete Audit Findings -->
+    <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.4em; color: var(--text); margin-bottom: 12px; margin-top: 36px;">
+      🔎 Detailed Audit Findings ({TOTAL_COUNT} Checks)
+    </h2>
+    
+    <div class="controls-bar">
+      <div class="filter-tabs">
+        <button class="tab-btn active" onclick="filterChecks(this, 'all')">All ({TOTAL_COUNT})</button>
+        <button class="tab-btn" onclick="filterChecks(this, 'failed')">Failed ({FAILED_COUNT})</button>
+        <button class="tab-btn" onclick="filterChecks(this, 'passed')">Passed ({PASSED_COUNT})</button>
+        <button class="tab-btn" onclick="filterChecks(this, 'high')">Priority Failed ({HIGH_FAILED_COUNT})</button>
+      </div>
+      <div class="search-container">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="check-search" class="search-input" onkeyup="searchChecks()" placeholder="Search findings...">
+      </div>
+    </div>
+
+    <div class="checks-list" id="checks-list">
+      {CHECKS_HTML}
+    </div>
+
+    <!-- AI Bridge Payload Card -->
+    <div class="ai-bridge-box">
+      <h3>🤖 Generative AI Integration Bridge</h3>
+      <p>
+        Copy this pre-packaged, machine-readable JSON data payload. Paste it directly into your local LLM chat window (such as ChatGPT, Claude, or Gemini) to execute advanced diagnosis and generate a strategic web recovery plan.
+      </p>
+      <button class="action-btn" id="copy-ai-btn" onclick="copyAuditData()">📋 Copy Audit Payload for AI</button>
+    </div>
+
+    <!-- JSON Storage script tag -->
+    <script id="audit-data-json" type="application/json">
+{AI_JSON_PAYLOAD}
+    </script>
+
+    <footer>
+      Powered by <strong style="color: var(--orange);">North Web Pro</strong> — Your Guide in the Digital Wilderness
+    </footer>
+
+  </div>
+
+  <script>
+    // Expand/Collapse cards
+    function toggleCard(headerElement) {
+      const card = headerElement.parentElement;
+      card.classList.toggle('expanded');
+    }
+
+    // Copy Code snippets
+    function copyCode(buttonElement) {
+      const pre = buttonElement.parentElement.nextElementSibling;
+      const code = pre.querySelector('code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const originalText = buttonElement.textContent;
+        buttonElement.textContent = 'Copied!';
+        setTimeout(() => {
+          buttonElement.textContent = originalText;
+        }, 2000);
+      });
+    }
+
+    // Copy configuration codes
+    function copyCodeText(buttonElement, elementId) {
+      const code = document.getElementById(elementId).textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const originalText = buttonElement.textContent;
+        buttonElement.textContent = 'Copied!';
+        setTimeout(() => {
+          buttonElement.textContent = originalText;
+        }, 2000);
+      });
+    }
+
+    // Switch Server Config tabs
+    function switchConfigTab(buttonElement, paneId) {
+      // Deactivate all headers
+      const headers = buttonElement.parentElement.querySelectorAll('.config-tab-btn');
+      headers.forEach(h => h.classList.remove('active'));
+      
+      // Deactivate all panes
+      const body = buttonElement.parentElement.nextElementSibling;
+      const panes = body.querySelectorAll('.config-pane');
+      panes.forEach(p => p.classList.remove('active'));
+      
+      // Activate selected
+      buttonElement.classList.add('active');
+      document.getElementById(paneId).classList.add('active');
+    }
+
+    // Filter checks list
+    function filterChecks(buttonElement, filterType) {
+      // Toggle active classes
+      const tabs = buttonElement.parentElement.querySelectorAll('.tab-btn');
+      tabs.forEach(t => t.classList.remove('active'));
+      buttonElement.classList.add('active');
+
+      const cards = document.querySelectorAll('.check-card');
+      cards.forEach(card => {
+        const isPassed = card.getAttribute('data-passed') === 'true';
+        const severity = card.getAttribute('data-severity');
+        
+        let show = false;
+        if (filterType === 'all') {
+          show = true;
+        } else if (filterType === 'failed') {
+          show = !isPassed;
+        } else if (filterType === 'passed') {
+          show = isPassed;
+        } else if (filterType === 'high') {
+          show = !isPassed && (severity === 'critical' || severity === 'high');
+        }
+
+        if (show) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+      
+      // Reset search filter
+      document.getElementById('check-search').value = '';
+    }
+
+    // Search input checks filter
+    function searchChecks() {
+      const query = document.getElementById('check-search').value.toLowerCase().trim();
+      const cards = document.querySelectorAll('.check-card');
+      
+      // Find active filter tab to respect its boundaries
+      const activeTab = document.querySelector('.tab-btn.active').textContent.toLowerCase();
+      let tabFilter = 'all';
+      if (activeTab.includes('failed')) tabFilter = 'failed';
+      else if (activeTab.includes('passed')) tabFilter = 'passed';
+      else if (activeTab.includes('priority')) tabFilter = 'high';
+
+      cards.forEach(card => {
+        const isPassed = card.getAttribute('data-passed') === 'true';
+        const severity = card.getAttribute('data-severity');
+        const text = card.querySelector('.check-name').textContent.toLowerCase() + ' ' + 
+                     card.querySelector('.category-badge').textContent.toLowerCase();
+
+        // Respect active tab boundary
+        let tabMatches = false;
+        if (tabFilter === 'all') tabMatches = true;
+        else if (tabFilter === 'failed') tabMatches = !isPassed;
+        else if (tabFilter === 'passed') tabMatches = isPassed;
+        else if (tabFilter === 'high') tabMatches = !isPassed && (severity === 'critical' || severity === 'high');
+
+        if (tabMatches && text.includes(query)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    // Copy AI Bridge structured payload
+    function copyAuditData() {
+      const data = document.getElementById('audit-data-json').textContent;
+      navigator.clipboard.writeText(data).then(() => {
+        const btn = document.getElementById('copy-ai-btn');
+        btn.textContent = '✅ Payload Copied!';
+        btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+        btn.style.boxShadow = '0 4px 15px rgba(16, 185, 129, 0.3)';
+        setTimeout(() => {
+          btn.textContent = '📋 Copy Audit Payload for AI';
+          btn.style.background = 'linear-gradient(135deg, var(--orange) 0%, #ea580c 100%)';
+          btn.style.boxShadow = '0 4px 15px rgba(249, 115, 22, 0.3)';
+        }, 2500);
+      });
+    }
+  </script>
+
+</body>
+</html>"""
+
+    # Format replacements on the non-f-string template
+    output = html_template.replace("{URL}", url)
+    output = output.replace("{SCORE}", str(score))
+    output = output.replace("{GRADE}", grade)
+    output = output.replace("{STROKE_OFFSET}", f"{stroke_offset:.2f}")
+    output = output.replace("{PASSED_COUNT}", str(passed_count))
+    output = output.replace("{FAILED_COUNT}", str(failed_count))
+    output = output.replace("{HIGH_FAILED_COUNT}", str(high_failed_count))
+    output = output.replace("{TOTAL_COUNT}", str(total_count))
+    output = output.replace("{DATE}", date)
+    output = output.replace("{GCOLOR}", gcolor)
+    output = output.replace("{BG}", BG)
+    output = output.replace("{CARD}", CARD)
+    output = output.replace("{BORDER}", BORDER)
+    output = output.replace("{ORANGE}", ORANGE)
+    output = output.replace("{BLUE}", BLUE)
+    output = output.replace("{TEXT}", TEXT)
+    output = output.replace("{MUTED}", MUTED)
+    output = output.replace("{CAT_BARS}", cat_bars)
+    output = output.replace("{PLAN}", plan)
+    
+    # Conditional section renders
+    nap_sec = f'<div class="card"><h2>📇 NAP Placement Consistency (Local SEO)</h2>{nap}</div>' if nap else ''
+    perf_sec = f'<div class="card"><h2>⚡ Baseline Request Profiles</h2>{perf}</div>' if perf else ''
+    output = output.replace("{NAP_SECTION}", nap_sec)
+    output = output.replace("{PERF_SECTION}", perf_sec)
+    
+    output = output.replace("{CHECKS_HTML}", checks_html)
+    output = output.replace("{ROBOTS_TMPL}", robots_tmpl)
+    output = output.replace("{SITEMAP_TMPL}", sitemap_tmpl)
+    output = output.replace("{HTACCESS_TMPL}", htaccess_tmpl)
+    
+    # Secure double-check of payload insertion
+    output = output.replace("{AI_JSON_PAYLOAD}", json.dumps(ai_json_payload, indent=2))
+    
+    return output

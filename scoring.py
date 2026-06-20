@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 from checks.base import CheckResult, Severity
 
 CATEGORY_WEIGHTS = {
