@@ -1,13 +1,9 @@
+from functools import lru_cache
 from checks.base import CheckCategory, Severity, CheckResult
 
-# Check categories are imported lazily to avoid circular imports
-# until all modules are implemented
-ALL_CHECK_CATEGORIES = []
 
+@lru_cache(maxsize=None)
 def _load_categories():
-    global ALL_CHECK_CATEGORIES
-    if ALL_CHECK_CATEGORIES:
-        return ALL_CHECK_CATEGORIES
     from checks.technical import TechnicalChecks
     from checks.performance import PerformanceChecks
     from checks.local_seo import LocalSeoChecks
@@ -15,7 +11,7 @@ def _load_categories():
     from checks.security import SecurityChecks
     from checks.accessibility import AccessibilityChecks
     from checks.conversion import ConversionChecks
-    ALL_CHECK_CATEGORIES = [
+    return [
         TechnicalChecks,
         PerformanceChecks,
         LocalSeoChecks,
@@ -24,4 +20,3 @@ def _load_categories():
         AccessibilityChecks,
         ConversionChecks,
     ]
-    return ALL_CHECK_CATEGORIES

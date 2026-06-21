@@ -40,18 +40,18 @@ class TechnicalChecks(CheckCategory):
             return results
 
         results.append(self._check_meta_title(homepage))
-        results.append(self._check_meta_description(homepage))
-        results.append(self._check_heading_hierarchy(homepage))
+        results.append(self._check_tech_meta_desc(homepage))
+        results.append(self._check_tech_headings(homepage))
         results.append(self._check_canonical(homepage))
         results.append(self._check_robots_meta(homepage))
         results.append(self._check_schema(homepage))
-        results.append(self._check_open_graph(homepage))
+        results.append(self._check_tech_og_tags(homepage))
         results.append(self._check_twitter_cards(homepage))
         results.append(self._check_favicon(homepage))
         results.append(self._check_sitemap(crawl_result))
         results.append(self._check_robots_txt(crawl_result))
         results.append(self._check_broken_links(crawl_result))
-        results.append(self._check_redirect_chains(crawl_result))
+        results.append(self._check_tech_redirects(crawl_result))
         results.append(self._check_internal_links(crawl_result))
         results.append(self._check_url_structure(crawl_result))
         results.append(self._check_pagination(homepage))
@@ -93,7 +93,7 @@ class TechnicalChecks(CheckCategory):
             data={"title": title, "length": len(title)},
         )
 
-    def _check_meta_description(self, page):
+    def _check_tech_meta_desc(self, page):
         meta = page.soup.find("meta", attrs={"name": "description"})
         desc = meta.get("content", "") if meta else ""
         passed = 120 <= len(desc) <= 160 and len(desc) > 0
@@ -112,7 +112,7 @@ class TechnicalChecks(CheckCategory):
             data={"description": desc, "length": len(desc)},
         )
 
-    def _check_heading_hierarchy(self, page):
+    def _check_tech_headings(self, page):
         headings = page.soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
         h1_count = len(page.soup.find_all("h1"))
         # Check for skipped levels (e.g., h1 → h3 with no h2)
@@ -261,7 +261,7 @@ class TechnicalChecks(CheckCategory):
             "url": page.final_url
         }, indent=2)
 
-    def _check_open_graph(self, page):
+    def _check_tech_og_tags(self, page):
         og_tags = page.soup.find_all("meta", attrs={"property": re.compile(r"^og:")})
         og_keys = [t.get("property") for t in og_tags]
         required = ["og:title", "og:description", "og:image", "og:url"]
@@ -430,7 +430,7 @@ class TechnicalChecks(CheckCategory):
             },
         )
 
-    def _check_redirect_chains(self, crawl_result):
+    def _check_tech_redirects(self, crawl_result):
         chains = []
         for url, page in crawl_result.pages.items():
             hops = getattr(page, "redirect_hops", [])
