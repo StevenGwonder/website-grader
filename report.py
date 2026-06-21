@@ -1470,6 +1470,6 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     output = output.replace("{HTACCESS_TMPL}", htaccess_tmpl)
     
     # Secure double-check of payload insertion
-    output = output.replace("{AI_JSON_PAYLOAD}", json.dumps(ai_json_payload, indent=2))
+    output = output.replace("{AI_JSON_PAYLOAD}", json.dumps(ai_json_payload, indent=2).replace("</", "<\\/"))
     
     return output
