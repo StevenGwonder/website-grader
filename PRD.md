@@ -1,256 +1,277 @@
-# Product Requirements Document (PRD): Next-Generation Website Grader
+# Product Requirements Document (PRD): Website Intelligence Platform
 
 ## 1. Executive Summary & Purpose
 
-The purpose of the **Next-Generation Website Grader** is to evolve the current 53-check traditional SEO auditor into a forward-looking diagnostic engine. This grader will measure how well web assets communicate with both **human users** and **autonomous AI agents, RAG (Retrieval-Augmented Generation) pipelines, and conversational search engines (GEO — Generative Engine Optimization)**. 
+The **Website Intelligence Platform** is the commercial evolution of our existing Python website grader. Instead of merely scanning a few pages to assign an arbitrary score, it operates as a trustworthy, evidence-led programmatic decision system for technical health, SEO, accessibility, digital trust, entity verification, AI-search/GEO discoverability, content opportunity, conversion readiness, and ongoing monitoring.
 
-Traditional search traffic is transitioning into the "Citation Economy." As users shift from clicking search results to asking conversational engines (like ChatGPT Search, Gemini, Perplexity, and Claude), websites must optimize for crawler access, content chunkability, token budgets, factual density, and semantic protocols.
+Traditional search is transitioning into the **Citation Economy**. As users shift from search engine result pages (SERPs) to generative search and conversational engines (ChatGPT Search, Google Gemini/SGE, Perplexity, Claude, etc.), websites must optimize for AI crawlers, chunkability, token economics, factual density, and semantic protocols.
 
-This PRD establishes the roadmap for transforming our legacy codebase into a robust, high-value tool, broken into modular, bite-sized tasks. These tasks are structured so that autonomous subagents can complete them incrementally.
-
----
-
-## 2. Current Architecture vs. Next-Gen Blueprint
-
-### 2.1 The Current System
-The current codebase is a command-line tool and Flask web application built in Python:
-* **CLI Engine:** [grader.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/grader.py) orchestrates crawling, runs check suites, calls the scoring module, generates code fixes, and writes the report.
-* **Crawler:** [crawler.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/crawler.py) crawls a site (homepage + up to `max_pages` key pages) using `curl_cffi` to mimic Google Chrome.
-* **Checks Package:** Code under [checks/](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks) organizes diagnostics into 7 modules:
-  * [technical.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/technical.py) (Meta tags, heading hierarchy, canonicals, robots.txt, sitemaps, redirect chains, etc.)
-  * [performance.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/performance.py) (TTFB, page weight, compression, image attributes, minification ratio)
-  * [local_seo.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/local_seo.py) (NAP extraction, NAP consistency, LocalBusiness schema existence, map embeds)
-  * [content.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/content.py) (Word counts, keyword density, readability formulas, basic E-E-A-T keywords)
-  * [security.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/security.py) (HTTPS URL check, basic security header checks, mixed content scans)
-  * [accessibility.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/accessibility.py) (Alt tags, form labels, heading sequence, ARIA role presence)
-  * [conversion.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/conversion.py) (CTA detection, social links, analytics tracking tags)
-* **Scoring Engine:** [scoring.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/scoring.py) calculates a weighted category average and an overall 0-100 score.
-* **Fix Generator:** [fixes.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/fixes.py) creates copy-pasteable HTML and JSON snippets for common issues.
-* **Report Builder:** [report.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/report.py) compiles results into a self-contained HTML report with CSS visual charts.
-
-### 2.2 Crucial Gaps & Limitations
-1. **Agentic AI & GEO Blindness:** The current suite fails to audit how AI crawlers (like OpenAI's `GPTBot` or Anthropic's `ClaudeBot`) are treated by the server. It lacks checks for standard AI directory descriptors (like `llms.txt`), does not track page token footprints, does not audit citation/factual density, and does not check for agentic transaction protocols (`/.well-known/agent-card.json`, MCP, ACP).
-2. **Lab Data Performance Bias:** Performance metrics are measured from single-point-in-time requests (lab data) using raw request timings (TTFB, weight). It does not pull real-world field experience metrics (like Interaction to Next Paint - INP, LCP, or CLS) from real users via the Google Chrome UX Report (CrUX) API.
-3. **Weak Structured Data Audits:** The Schema checks verify basic presence but ignore industry-specific categorization (e.g. `LegalService` vs. generic `LocalBusiness`), geo-coordinate decimal accuracy, opening hours schema formatting, and catalog relationships.
-4. **Basic Security Scans:** Transport security is assessed by checking the URL scheme. It lacks real SSL/TLS handshake negotiation checks (verifying TLS 1.3 or testing for deprecated ciphers) and cookie flags validation.
-5. **No AI/LLM Reporting:** There is no integration with large language models to generate personalized executive summaries, prioritized local SEO advice, or bespoke fixing scripts.
+This platform behaves like a **senior consultant supported by repeatable instrumentation**, not a checklist generator supported by optimism.
 
 ---
 
-## 3. The New 100-Point Weighted Scoring Model
+## 2. Core Architecture: The Four-Layer Framework
 
-The next-generation scoring architecture will align the grader's scoring categories and weights directly to the 5 domains of generative engine optimization and modern user experience:
+The platform is structured into four distinct functional layers to ensure modularity, repeatability, and testability:
 
 ```mermaid
-pie title Next-Gen 100-Point Grader Weight Distribution
-    "Agentic AI & GEO Readiness" : 25
-    "Performance & Technical SEO" : 20
-    "Privacy, Security, & Digital Trust" : 20
-    "Universal Accessibility & Semantic Structure" : 20
-    "Local SEO & Entity Verification" : 15
+graph TD
+    subgraph Layer 1: Observability
+        A[Crawl & Static/Rendered Fetch] --> B[External API Integrations]
+        B --> C[Data Extraction & Normalization]
+    end
+    subgraph Layer 2: Diagnosis
+        C --> D[Applicability Engine]
+        D --> E[Deterministic Rule Engine]
+    end
+    subgraph Layer 3: Opportunity Intelligence
+        E --> F[Scoring Framework]
+        F --> G[Opportunity Modeling]
+    end
+    subgraph Layer 4: Execution & Verification
+        G --> H[Prioritized Task Backlog]
+        H --> I[Re-Audit & Verification]
+    end
 ```
 
-| Domain | Weight | Diagnostic Objectives | Key Metrics |
-|---|---|---|---|
-| **1. Agentic AI & GEO Readiness** | 25% | Crawler access, token sizes, citation optimization, and machine transactional capability. | `llms.txt` presence, AI bot rules parsing, Page token budget, Factual/citation density, /.well-known/agent-card.json presence. |
-| **2. Performance & Technical SEO** | 20% | Core responsiveness, rendering architecture, and real user speed measurements. | CrUX API field metrics (INP, LCP, CLS), SSR raw markup access (no-JS crawl), compression (Brotli), HTTP/3 support. |
-| **3. Privacy, Security & Digital Trust** | 20% | Encryption standards, HTTP headers, session cookie protection, and rate limiting. | TLS v1.3 configuration, CSP/HSTS/X-Frame headers, Cookie flags (HttpOnly/Secure/SameSite), WAF verification. |
-| **4. Local SEO & Entity Verification** | 15% | Structured data precision, local packs matching, and multi-location schemas. | LocalBusiness subtype schema, 5-decimal coordinate accuracy, branchOf URLs, NAP GBP alignment. |
-| **5. Accessibility & Semantic Structure** | 20% | Accessibility tree structure, keyboard controls, visual labels, and target footprints. | Semantic tag validators (no divs as buttons), ARIA bindings, skip links, image alt attributes, target size (>= 8x8px). |
+### 2.1 Layer 1: Observability
+* Collects immutable, deterministic facts about the website.
+* Captures raw HTML, rendered DOM, network traces, console errors, response codes, and headers.
+* Integrates external APIs (GSC, GA4, CrUX, Google Business Profile) as pluggable adapters.
+
+### 2.2 Layer 2: Diagnosis
+* Determines what is working, broken, missing, or contradictory.
+* Executes rules based on page/site classifications.
+* Restricts output states to: `PASS`, `FAIL`, `WARNING`, `NOT_APPLICABLE`, `UNVERIFIED`, `ERROR`, or `INFORMATIONAL`.
+
+### 2.3 Layer 3: Opportunity Intelligence
+* Translates technical findings into business relevance.
+* Focuses on probable upside, search demand, conversion intent, prevalence, and feasibility.
+
+### 2.4 Layer 4: Execution and Verification
+* Generates developer/owner-specific instructions.
+* Supports targeted re-auditing to verify issues have been resolved.
 
 ---
 
-## 4. Phased Implementation Roadmap for Subagents
+## 3. Existing Baseline Problems to Correct
 
-To allow small, affordable agents to implement these upgrades step-by-step, the next-generation grader upgrades are broken down into six phases. Each phase is partitioned into distinct tasks.
+Our baseline grader suffers from the following systemic defects which **must** be resolved in this platform:
 
-### Phase 1: Agentic AI & GEO Diagnostics (Domain 1)
-* **Goal:** Enable the grader to check for LLM scraper accessibility, token economics, and AI schemas.
-
-#### Task 1.1: `llms.txt` Presence & Format Audit
-* **Objective:** Scan the root directory for a structured sitemap-style `/llms.txt` file and audit its formatting.
-* **Scope:** 
-  * Check `/llms.txt` at the root domain.
-  * Validate that the server returns a `200 OK` status and content type `text/plain` or `text/markdown`.
-  * Verify that file size is within token limits (e.g. under 5,000 tokens) and check for common sections like `# Tools` or `# API Reference`.
-* **Technical Requirements:** Write a check class `LlmsTxtCheck` inside a new check file `checks/agentic.py` (or [checks/technical.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/technical.py)). Return a `CheckResult` with scoring: 100 for valid sitemap, 50 for raw txt, 0 for missing/5xx error.
-* **Verification Criteria:** Run tests verifying `LlmsTxtCheck` on mock server responses.
-
-#### Task 1.2: AI Crawler `robots.txt` Configuration Auditor
-* **Objective:** Parse `robots.txt` allowed and blocked directives for major AI scraper user agents.
-* **Scope:**
-  * Parse [crawler.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/crawler.py)'s crawled `robots_txt`.
-  * Search for user agents: `GPTBot`, `OAI-SearchBot`, `ClaudeBot`, `Claude-SearchBot`, `PerplexityBot`, `Google-Extended`, `Bytespider`.
-  * Calculate an accessibility score: Deduct points if these crawlers are blocked (especially citation crawlers like `OAI-SearchBot` or `Claude-SearchBot`).
-* **Technical Requirements:** Implement `AiCrawlerRobotsCheck`. Parse lines like `User-agent: GPTBot` and subsequent `Disallow:`.
-* **Verification Criteria:** Test with various mock `robots.txt` strings (fully blocked vs. fully allowed).
-
-#### Task 1.3: Page Token Budget Calculator
-* **Objective:** Calculate the token footprint of each crawled page to ensure it fits in LLM context windows.
-* **Scope:**
-  * Implement a simple fallback tokenizer (or a standard library word-to-token estimator: ~1.3 tokens per word) to compute the token size of the raw HTML, main content text, and CSS/JS payloads.
-  * Flag any page exceeding 30,000 tokens, API references exceeding 25,000 tokens, or conceptual guides exceeding 20,000 tokens.
-* **Technical Requirements:** Implement `TokenBudgetCheck`. Calculate token length of `PageData.html` and `PageData.soup.get_text()`.
-* **Verification Criteria:** Assert that pages with large scripts or text trigger a warning.
-
-#### Task 1.4: Factual & Citation Density Auditor
-* **Objective:** Analyze page text using natural language processing patterns to verify if the content is optimized for LLM search queries.
-* **Scope:**
-  * Scan for key citation signals:
-    1. Numerical/statistical data (numbers, percentages).
-    2. Named source attributions (e.g., "according to...", "reported by...").
-    3. Direct expert quotations.
-  * Penalize keyword-stuffed sections (frequency of keyword > 5%).
-* **Technical Requirements:** Implement `CitationDensityCheck`. Use regex to match metrics and quotations. Check density score: targets are at least 3 statistical claims/expert quotes per 1,000 words.
-* **Verification Criteria:** Run test assertions against pages with highly factual versus keyword-stuffed content.
-
-#### Task 1.5: Agentic Transaction Protocols Scanner
-* **Objective:** Scan the server root for machine-to-machine capabilities and agent protocols.
-* **Scope:**
-  * Request `/.well-known/agent-card.json` and verify its JSON structure.
-  * Check HTML headers for Model Context Protocol (MCP) tool declarations or WebMCP headers.
-  * Scan page markup for Stripe Agentic Commerce (ACP) or Shopify Universal Commerce (UCP) hooks.
-* **Technical Requirements:** Implement `AgentProtocolCheck` which queries the JSON path and scans HTML schemas.
-* **Verification Criteria:** Verify check returns `passed=True` when a valid mock `agent-card.json` is returned.
+1. **Site-Type Blindness:** Penalizes national SaaS or ecommerce sites for lacking Local SEO signals (such as map embeds or physical address schema). 
+   * *Resolution:* Run local checks only after classifying the site type (e.g. Local storefront, Service-area business, National SaaS, etc.).
+2. **Weak Business-Name Extraction:** Uses page titles as business names, creating false NAP (Name, Address, Phone) mismatch alerts.
+   * *Resolution:* Cross-reference schema, meta tags, and footer info to evaluate name consistency.
+3. **Sitemap Parsing Defects:** Fails to parse sitemap indexes, namespaces, compression, CDNs, or redirected sitemaps.
+   * *Resolution:* Build a recursive parser that handles sitemap indexes and records retrieval details.
+4. **HTTP-Status Misclassification:** Flags rate-limited or bot-blocked external links (e.g. 403 Forbidden) as broken.
+   * *Resolution:* Reclassify as `access_restricted` or `unverified` rather than `broken`.
+5. **Redirect-Count Confusion:** Labels any redirect as a "chain".
+   * *Resolution:* Track hops; flag only when redirects are >1 hop.
+6. **Generic Structured-Data Advice:** Merely counts JSON-LD scripts rather than parsing vocabulary correctness and checking Google rich-result feature eligibility.
+7. **Outdated Content Advice:** Recommends FAQ schema as a guaranteed Google rich-result driver (which is now mostly deprecated by Google).
+8. **Keyword-Density Mythology:** Flags fixed-percentage keyword density rather than semantic coverage, cannibalization, or repetitions.
+9. **Readability Oversimplification:** Flags low readability text without considering audience intent, technical depth, or industry standards.
+10. **Incomplete Accessibility Testing:** Counts empty attributes rather than evaluating keyboard focus, accessible names, and component-level grouping.
 
 ---
 
-### Phase 2: Chrome UX Report (CrUX) Integration (Domain 2)
-* **Goal:** Supplement local request timings with real-world user field data from the Google CrUX API.
+## 4. Modern Four-Pillar Scoring Model
 
-#### Task 2.1: CrUX API Client Integration
-* **Objective:** Create an API client in the crawler to query real user performance records for the domain.
-* **Scope:**
-  * Create a modular client in [crawler.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/crawler.py) to call the CrUX API endpoint `https://chromeuxreport.googleapis.com/v1/records:queryRecord`.
-  * Accept an optional Google API Key parameter from environment variables (`GOOGLE_API_KEY`).
-  * If no API key is present or if the domain has insufficient CrUX data, gracefully fall back to local "lab" measurements (while flagging the lack of field data).
-* **Technical Requirements:** Fetch metrics: Interaction to Next Paint (INP), Largest Contentful Paint (LCP), and Cumulative Layout Shift (CLS).
-* **Verification Criteria:** Mock API responses and assert parser maps JSON variables to class attributes.
+To prevent hiding uncertainty inside a single arbitrary number, the platform will report four separate indicators:
 
-#### Task 2.2: Core Responsive & Stability Auditing (INP, LCP, CLS)
-* **Objective:** Incorporate field latency metrics into the grader scoring.
-* **Scope:**
-  * Create `CruxMetricsCheck` in [checks/performance.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/performance.py).
-  * Evaluate:
-    * INP <= 200ms (Pass), >200ms and <=500ms (Needs Improvement), >500ms (Fail).
-    * LCP <= 2.5s (Pass), >2.5s and <=4.0s (Needs Improvement), >4.0s (Fail).
-    * CLS <= 0.10 (Pass), >0.10 and <=0.25 (Needs Improvement), >0.25 (Fail).
-* **Technical Requirements:** Apply severities: INP (Critical, 6% of total score), LCP & CLS (High, 5% of total score).
-* **Verification Criteria:** Assert score matches the evaluation bounds for good/poor ranges.
+### 4.1 Website Health
+* Computed only from evaluated and **applicable** checks.
+* *Values:* `PASS` = 1.0, `WARNING` = 0.5, `FAIL` = 0.0. `NOT_APPLICABLE`, `INFORMATIONAL`, and `ERROR` are excluded.
+* *Formula:* 
+  $$\text{Health Score} = \frac{\sum (\text{weight} \times \text{value})}{\sum (\text{weights of evaluated applicable checks})} \times 100$$
 
-#### Task 2.3: SSR vs. Client-Side Rendering Audit
-* **Objective:** Ensure crawlers that do not execute JavaScript can index the page text.
-* **Scope:**
-  * Compare the crawl payload fetched with `curl_cffi` (no-JS) against a simulated client-side app layout.
-  * Scan for empty HTML shells (`<div id="app"></div>` or `<div id="root"></div>`) that contain no main text, indicating heavy reliance on client-side rendering (CSR).
-  * Flag the site if critical textual content (above 200 words) is missing from the raw HTML code but present in sitemaps.
-* **Technical Requirements:** Implement `SsrRenderingCheck`.
-* **Verification Criteria:** Test against a mock SPA shell (empty body + scripts) to verify it fails the rendering check.
+### 4.2 Audit Coverage
+* Measures how much of the site was actually audited based on available data and integrations.
+* Gaps (e.g., missing GSC, GA4, or CrUX API) reduce the coverage score rather than lowering the website health score.
+
+### 4.3 Evidence Confidence
+* Tells the user how sure the system is of its findings.
+* Differentiates deterministic (e.g., HTTP 404) from inferred (e.g., AI-intent classification) observations.
+
+### 4.4 Opportunity Potential
+* Represents potential upside based on query impressions, conversion relevance, prevalence, and ease of fix.
 
 ---
 
-### Phase 3: Privacy, Security, & Digital Trust (Domain 3)
-* **Goal:** Harden the security scans beyond header existence checks.
+## 5. Core Data Model
 
-#### Task 3.1: Session Cookie Security Auditor
-* **Objective:** Inspect cookies set by the website to ensure session identifiers are fully protected.
-* **Scope:**
-  * Extract all cookie headers (`Set-Cookie`) from homepage and redirect requests.
-  * Check each cookie for the presence of three flags: `HttpOnly`, `Secure`, and `SameSite` (Lax or Strict).
-  * Deduct points for any cookie missing `HttpOnly` (vulnerable to XSS extraction) or `Secure` (vulnerable to intercept).
-* **Technical Requirements:** Write `CookieFlagsCheck` under [checks/security.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/security.py).
-* **Verification Criteria:** Verify cookie headers parsing with mock HTTP header structures.
+All system operations and findings are represented by versioned, immutable schema definitions:
 
-#### Task 3.2: Modern SSL/TLS Handshake & HSTS Validator
-* **Objective:** Query the server's SSL configuration to check for secure protocols and ciphers.
-* **Scope:**
-  * Perform a python `ssl` socket handshake with the target host.
-  * Verify the negotiated TLS version: flag TLS 1.0 or 1.1 as failures; require TLS 1.3 for maximum score.
-  * Read the response headers and verify that `Strict-Transport-Security` (HSTS) is configured with `max-age` of at least 1 year (31536000 seconds).
-* **Technical Requirements:** Implement `TlsHandshakeCheck` utilizing the python `ssl` and `socket` libraries.
-* **Verification Criteria:** Test socket handshake mocking on a local test environment or run against a local port.
+* **AuditRun:** Metadata for the crawl (budgets, boundaries, versions, timestamps, crawl coverage).
+* **SiteProfile:** Inferred characteristics (site type, business model, locations, CMS, overrides).
+* **PageSnapshot:** Raw and rendered html hashes, headers, status codes, and word/token counts.
+* **Finding:** Unique check results containing applicability checks, severity, scope, and evidence links.
+* **Evidence:** Traceable, immutable evidence records (CSS selectors, HTTP traces, HTML chunks, JSON keys).
+* **Recommendation:** Actionable code templates, owner roles, estimated effort, and validation check IDs.
 
 ---
 
-### Phase 4: Structured Schema & GBP Verification (Domain 4)
-* **Goal:** Ensure business entity verification aligns across the web.
+## 6. 12-Phase Roadmap and Release Gates
 
-#### Task 4.1: Specialized LocalBusiness Schema Auditor
-* **Objective:** Parse JSON-LD structured data for precise micro-categorization and accurate configurations.
-* **Scope:**
-  * Look for specific subtypes of `LocalBusiness` (e.g., `PlumbingService`, `Dentist`, `LegalService`, `Restaurant`) instead of the base `LocalBusiness` tag.
-  * Validate that coordinates (`geo.latitude`, `geo.longitude`) specify at least 5 decimal places of precision.
-  * Verify that `openingHoursSpecification` opens and closes details conform to ISO 8601 formatting, including proper weekday arrays.
-  * Confirm that service details map back to the provider entity.
-* **Technical Requirements:** Update `_check_localbusiness_schema` in [checks/local_seo.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/local_seo.py).
-* **Verification Criteria:** Validate schema structures against standard examples.
+```
+Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> Phase 5
+(Inventory) (Contracts) (Crawler)  (Scoring)   (Technical) (Perf/A11y)
+                                                                 │
+Phase 12 <── Phase 11 <── Phase 10 <── Phase 9 <── Phase 8 <── Phase 6/7
+(Billing)   (Workflow)   (AI Layer)  (GSC/GA4)  (AI-Search) (Content/Local)
+```
 
-#### Task 4.2: Location URL Routing & GBP Cross-Reference
-* **Objective:** Check multi-location organization architectures and verify GBP mapping.
-* **Scope:**
-  * For multi-location businesses, verify that each location has a separate landing page.
-  * Check that individual location pages link back to the main organization using the `branchOf` attribute in their schema.
-  * (Optional API task): Query a mock/active GBP profile, comparing the spelling of the name, address formatting, and phone number against the page's schema markup.
-* **Technical Requirements:** Implement `MultiLocationRoutingCheck` and `GbpNapAlignmentCheck`.
-* **Verification Criteria:** Assert that schema with mismatched addresses flags errors.
+### 6.1 Roadmap Release Gates
+* **Phase 0: Repository and Baseline Audit (Release Gate RG-0)**
+  * Verify repository current structure, establish a frozen baseline fixture runner, and run regression tests.
+* **Phase 1: Data Contracts and Evidence (Release Gate RG-1)**
+  * Create schema models (Pydantic), evidence registries, and coverage metrics.
+* **Phase 2: Crawl Correctness (Release Gate RG-2)**
+  * Implement URL normalization, recursive sitemap indexing, and redirect tracking.
+* **Phase 3: Applicability and Scoring (Release Gate RG-3)**
+  * Site type classification (SaaS, Local storefront, Service-area business, Ecommerce) and applicability overrides.
+* **Phase 4: Deterministic Technical Modules (Release Gate RG-4)**
+  * Rebuild canonical, heading hierarchy, indexing, and structural schema validation.
+* **Phase 5: Performance and Accessibility (Release Gate RG-5)**
+  * Separate field data (CrUX) and lab data. Integrate custom accessibility and layout stability rules.
+* **Phase 6: Content and Architecture (Release Gate RG-6)**
+  * Main-content extraction, duplicate clustering, page-type inventory, and link graphs.
+* **Phase 7: Local Module (Release Gate RG-7)**
+  * Verify NAP consistency, location-page uniqueness, and Service-area business logics.
+* **Phase 8: AI-Search Module (Release Gate RG-8)**
+  * AI bot rules parsing, extractability metrics, and agent transaction cards.
+* **Phase 9: First-Party Integrations (Release Gate RG-9)**
+  * Connect GSC, GA4, and IndexNow to import actual search performance.
+* **Phase 10: AI Interpretation (Release Gate RG-10)**
+  * LLM-driven synthesis of deterministic findings, summaries, and gap audits.
+* **Phase 11: Premium Report & Task Workflow (Release Gate RG-11)**
+  * Implement verification loops, export task plans (CSV/Markdown), and compare re-audits.
+* **Phase 12: Monitoring & Commercial Hardening (Release Gate RG-12)**
+  * Schedules, alerts, usage metrics, retention limits, and multi-tenant accounts.
 
----
+### 6.2 Release Gate RG-0 Checklist
+RG-0 is complete only when:
+1. `docs/current-state.md` exists.
+2. `docs/current-check-catalog.md` exists.
+3. `docs/current-data-flow.md` exists.
+4. `docs/current-output-contract.md` exists.
+5. Existing entry points are documented.
+6. Existing check files are cataloged.
+7. Current scoring formula is documented.
+8. Current report schema is documented.
+9. SEO.com baseline audit can run from frozen fixtures without network calls.
+10. Known-defect regression tests exist.
+11. Known-defect tests either fail against current behavior or are marked expected-fail with a reason.
+12. ADR files exist for evidence-first (`docs/adr/001-evidence-first.md`), applicability-aware scoring (`docs/adr/002-applicability-aware-scoring.md`), static/rendered crawling (`docs/adr/003-static-and-rendered-crawling.md`), and AI-as-interpretation-layer (`docs/adr/004-ai-as-interpretation-layer.md`).
+13. Pydantic schema file exists (`models.py`).
+14. Schema validation tests exist.
+15. A legacy-to-v2 serializer or migration stub exists.
+16. No production audit logic has been modified except where needed to make the fixture runner possible.
 
-### Phase 5: Accessibility Tree & Sizing Targets (Domain 5)
-* **Goal:** Verify that visual layout code is accessible to visual and screen-reader AI bots.
-
-#### Task 5.1: Semantic Controls vs. Styled Divs Auditor
-* **Objective:** Audit the DOM to ensure interactive elements are semantic rather than generic.
-* **Scope:**
-  * Find `div` or `span` tags styled with CSS classes like `btn`, `button`, or `submit` that lack interactive roles.
-  * Verify that all buttons use the `<button>` tag or have explicit `role="button"` and `tabindex` properties.
-  * Scan heading trees to ensure that no levels are skipped (e.g. H1 followed directly by H3).
-* **Technical Requirements:** Update [checks/accessibility.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/checks/accessibility.py) to parse tag relationships.
-* **Verification Criteria:** Verify that a page with `<div class="btn">Click</div>` fails, while `<button>Click</button>` passes.
-
-#### Task 5.2: Layout Stability & Interaction Targets Audit
-* **Objective:** Scan the CSS and HTML configurations for stable action targets.
-* **Scope:**
-  * Check that all interactive target areas (links, buttons, input fields) maintain a visual layout footprint of at least 8x8 pixels (to assist AI vision agents).
-  * Check that interactive elements have explicit cursor styling (`cursor: pointer` or similar).
-  * Check image tags for `width` and `height` dimensions to prevent layout shifts.
-* **Technical Requirements:** Write `LayoutStabilityCheck` in `checks/accessibility.py`.
-* **Verification Criteria:** Assert validation errors are triggered on small targets or missing dimensions.
-
----
-
-### Phase 6: Reporting & CLI Enhancements
-* **Goal:** Integrate all new domains into the user interfaces and templates.
-
-#### Task 6.1: CLI Terminal Interface Upgrade
-* **Objective:** Update the CLI script to print the new 5-domain scores.
-* **Scope:**
-  * Update [grader.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/grader.py)'s text output routines.
-  * Print each of the 5 next-gen domains, the number of checks run/passed, and their weighted contributions.
-  * Color-code console outputs (Green for >= 80%, Yellow for 50-79%, Red for < 50%).
-* **Technical Requirements:** Replace standard prints in `main()` with structured logging/printing functions.
-* **Verification Criteria:** Run `grader.py` and inspect console outputs.
-
-#### Task 6.2: Next-Gen HTML Report Template Update
-* **Objective:** Revamp the report rendering code to display the new domains and metrics.
-* **Scope:**
-  * Update [report.py](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/report.py) and the inline HTML template.
-  * Add a 5-bar visual chart representing the GEO and accessibility domains.
-  * Display a dedicated card for "Agentic AI & GEO Readiness."
-  * Group findings by the 5 new domains rather than the legacy 7 check categories.
-* **Technical Requirements:** Re-arrange the HTML generation code. Ensure it continues to render a self-contained, Jinja-free single page.
-* **Verification Criteria:** Generate a test report and open in a browser to inspect visual alignments.
+**Do not proceed beyond WG-006 until RG-0 is demonstrated.**
 
 ---
 
-## 5. Non-Functional & Operational Requirements
+## 7. Comprehensive Task Backlog (WG-001 to WG-080)
 
-### 5.1 Technology Constraints
-* **Dependency Minimization:** Core libraries must remain in Python's standard library or standard dependencies (`requests`, `beautifulsoup4`, `curl_cffi`, `flask`). Avoid heavy frameworks that cannot run in low-resource container environments.
-* **Execution Performance:** The full site audit (hompage + 5 crawled pages) must execute in under 30 seconds.
-* **Robust Failures:** If external API calls (such as CrUX or WHOIS) fail, the crawler must log the error, fallback to mock/lab metrics, and generate the rest of the report.
+### Foundation (Phase 0)
 
-### 5.2 Agentic Hand-Off Protocols
-* **Task Isolation:** Each task must be executable in its own branch.
-* **Unit Tests:** Any check added must have a corresponding test function in the pytest suite.
-* **Backward Compatibility:** CLI arguments (`--output`, `--json`, `--verbose`) must remain supported.
+#### WG-001: Inventory the repository.
+* **Objective:** Document entry points, existing checks, scoring formulas, data flows, and current test coverage. Do not change production logic.
+
+#### WG-002: Reproduce the current SEO.com audit from a frozen fixture.
+* **Objective:** Create a frozen mock response/HTML dataset for `seo.com` so we can run regression checks deterministically.
+* **Requirements:** The fixture must contain:
+  1. `manifest.json` mapping URLs to mock files.
+  2. The original five crawled URLs.
+  3. Raw HTML fixture per URL.
+  4. Rendered DOM fixture per URL if available, or explicit unavailable marker.
+  5. HTTP status and headers per URL.
+  6. Redirect traces.
+  7. Robots.txt response fixture.
+  8. Sitemap candidate response fixtures.
+  9. External G2 `403` response fixture.
+  10. Expected legacy audit JSON.
+  11. Expected current HTML report if generated.
+  12. Test helper that runs the current engine without live network access.
+
+#### WG-003: Create known-defect regression tests.
+* **Objective:** Create tests proving current system bugs before fixing them.
+* **Defect List:**
+  1. Sitemap index or invalid sitemap endpoint reported as "0 URLs" instead of accurately classified.
+  2. External `403 Forbidden` classified as a broken link instead of access-restricted or unverified.
+  3. A single-hop redirect classified as a redirect chain.
+  4. Business name extracted solely from the `<title>` tag, creating false NAP mismatch.
+  5. National, SaaS, ecommerce, or non-local website penalized with Local SEO zero.
+  6. Obsolete FAQ schema advice presented as a Google rich-result opportunity.
+  7. Structured-data audit counts JSON-LD script blocks instead of parsing entities, `@graph`, and supported feature eligibility.
+  8. Keyword-density fixed-percentage rule flags repetition without excluding boilerplate, nav, footer, or brand/service context.
+  9. Readability score treated as a failure without page-type, audience, industry, or text-region context.
+  10. Accessibility tests count missing attributes instead of computed accessible names, valid labels, landmarks, focus behavior, and component-level grouping.
+  11. Unsafe generated fix code produces fictional addresses, phone numbers, ratings, review counts, map coordinates, or business hours.
+
+#### WG-004: Create Architecture Decision Records (ADRs).
+* **Objective:** Create documents for evidence-first execution, applicability scoring, static vs rendered crawling, and AI integration boundaries.
+
+#### WG-005: Create Pydantic output models.
+* **Objective:** Evolve data contracts with versioned, robust Pydantic schemas.
+* **Requirements:**
+  * Create models for: `AuditRun`, `SiteProfile`, `PageSnapshot`, `Evidence`, `Finding`, `Recommendation`, `ScoreSummary`, `LegacyAuditReport`, and `MigrationResult`.
+  * Use `schema_version = "2.0.0"`.
+  * Use `Field(default_factory=...)` for timestamps, IDs, and lists.
+  * Do not use mutable defaults like `[]` or list defaults directly.
+  * Do not use `datetime.utcnow()` directly as a default value (use a callable factory instead).
+
+#### WG-006: Add schema migration support.
+* **Objective:** Implement a serializer to translate legacy output objects to version `2.0.0` outputs.
+
+---
+
+### Phase 1 to 12 backlogs (WG-007 to WG-080)
+*(Note: These tasks represent future scope and must not be implemented during Phase 0 execution. The next agent may ONLY execute tasks WG-001 through WG-006.)*
+
+* **WG-007** through **WG-080** cover: Evidence Registry, Crawl Correctness, Heuristics/Applicability engines, Technical audits, Performance and Accessibility (Lighthouse/axe-core), Content graphs, Local SEO updates, GEO/AI crawlers, Integrations (GSC, GA4, IndexNow), AI summary synthese, Reporting panels, and Multi-tenant schedules.
+
+---
+
+## 8. Definition of Done (DoD) for Tasks
+
+A backlog task is complete only when:
+1. **Code:** The requested feature/logic is fully implemented.
+2. **Tests:** Unit tests and integration tests exist and pass.
+3. **Compatibility:** Existing compatibility checks pass. No regression.
+4. **Data Models:** Versioned Pydantic schemas are updated and used.
+5. **Errors & Logs:** Graceful exception handling and telemetry logging are present.
+6. **Evidence & Truth:** Finding data links to traceable, immutable evidence.
+7. **Documentation:** Relevant README or implementation guides are updated.
+8. **Minimal Refactoring:** Unrelated broad codebase refactoring is avoided (aligns with *Ponytail dev mode*).
+
+---
+
+## 9. Ponytail Dev Mode Constraints
+
+Every implementation step must run under the **Ponytail (lazy senior dev mode)** rules:
+* **No over-engineering:** Do not add complex abstraction directories or databases unless explicitly required by the active phase.
+* **Standard library first:** Prefer Python builtins over adding new dependencies.
+* **Fewer files:** Keep check implementations aggregated in logical files (e.g. keep check modules inside `checks/`) rather than creating a separate file for every rule.
+* **Verification:** Write the smallest possible check script/tests to verify logic before merging.
+* **Strict Foundation:** Ponytail mode must never be used as an excuse to skip evidence, tests, data contracts, compatibility, or release gates. Keep the code simple, but keep the truth layer strict.
+
+---
+
+## 10. Prevention of Scope Creep (Phase 0 Constraints)
+
+The next coding agent may **only** execute **WG-001 through WG-006**. It is strictly forbidden from implementing:
+* New SEO checks
+* New scoring formulas
+* Playwright browser rendering
+* Lighthouse integrations
+* axe-core accessibility runners
+* Google Search Console (GSC) or GA4 adapters
+* AI search/GEO visibility checks
+* Local SEO category rewrites
+* Report UI visual redesigns
+* Multi-tenant or billing architectures
+
+*The next agent is building the foundation, not the cathedral. Humans already tried tower-building once and it produced JavaScript frameworks.*
