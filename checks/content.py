@@ -20,6 +20,14 @@ class ContentChecks(CheckCategory):
         results.append(self._check_eeat(homepage))
         results.append(self._check_content_uniqueness(crawl_result))
         results.append(self._check_title_alignment(homepage))
+
+        # Inject raw-vs-rendered disparities for word count
+        disparities = getattr(homepage, "raw_vs_rendered_disparities", {})
+        if disparities and "word_count" in disparities:
+            for r in results:
+                if r.check_id == "content_word_count":
+                    r.data["raw_vs_rendered_disparity"] = disparities["word_count"]
+
         return results
 
     def _check_word_count(self, page):
