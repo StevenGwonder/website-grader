@@ -1,16 +1,16 @@
-# Phase 2: Crawl Correctness (task.md)
+# Phase 3: Applicability & Scoring (task.md)
 
-This file details the active tasks for **Phase 2: Crawl Correctness** required to ensure robust, accurate web crawling, redirect tracing, sitemap index traversal, and raw-vs-rendered comparison.
+This file details the active tasks for **Phase 3: Applicability and Scoring** required to establish site and page classifications, run check applicability overlays, and calculate separate scores for health, coverage, confidence, and opportunity.
 
 Developers or autonomous agents should execute these tasks sequentially. Each task has specific instructions, file targets, and verification criteria.
 
 ---
 
-## Strict Scope & Scope Creep Prevention (Phase 2)
+## Strict Scope & Scope Creep Prevention (Phase 3)
 
-The coding agent working on these tasks may **only** execute **WG-012 through WG-020**. It is strictly forbidden from implementing:
+The coding agent working on these tasks may **only** execute **WG-021 through WG-026**. It is strictly forbidden from implementing:
 * New SEO checks (outside existing 53 check structures)
-* Scoring formula rewrites (health vs coverage scoring calculations - Phase 3)
+* Lighthouse or axe-core automated execution
 * Google Search Console, GA4, or CrUX adapters
 * AI-interpretation and summary synthesis layers
 * UI visual reports redesigns
@@ -27,98 +27,79 @@ The coding agent working on these tasks may **only** execute **WG-012 through WG
 
 ---
 
-## Task Backlog: Phase 2 (Crawl Correctness)
-
-### [WG-012: Implement URL normalization](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Create a robust URL normalizer to prevent duplicate crawl requests for near-identical paths.
-* **Normalization Actions:**
-  * Lowercase hostnames.
-  * Strip default ports (e.g. 80, 443).
-  * Remove URL fragments (`#`).
-  * Remove duplicate trailing slashes (except root).
-  * Remove tracking parameters (e.g. `utm_*`, `gclid`) while preserving functional parameters.
-* **Target File:** Implement in `crawler.py` or a utility file.
-* **Verification:** Unit tests asserting correct normalization of varying URL formats.
+## Task Backlog: Phase 2 (Crawl Correctness) — [COMPLETED]
+* **WG-012** to **WG-020** implemented and verified. (Release Gate RG-2 passed)
 
 ---
 
-### [WG-013: Implement robust robots.txt parsing](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Parse `robots.txt` allowance/disallowance directives for custom bot user agents (including major AI search user agents).
-* **Target File:** Update `crawler.py` to use a robust robots parser (such as the standard `urllib.robotparser` or similar lightweight custom parser).
-* **Verification:** Assert correct block/allow evaluation against standard and complex `robots.txt` patterns.
+## Task Backlog: Phase 3 (Applicability & Scoring)
 
----
-
-### [WG-014: Implement recursive sitemap parsing](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Build a sitemap index parser to recursively gather sitemap URLs.
+### [WG-021: Implement page-type heuristics](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#classification--applicability-phase-3)
+* **Goal:** Classify pages into specific types using path patterns, content signals, and layout structures.
 * **Requirements:**
-  * Support sitemap index files (`<sitemapindex>`), namespaced tags, Gzip compression, and redirected sitemap paths.
-  * Record all fetch outcomes (DNS error, timeout, non-200 responses) in the crawl history.
-* **Target File:** Update sitemap loader in `crawler.py`.
-* **Verification:** Test against local compressed sitemaps and nested index structures.
+  * Support page types: `homepage`, `service`, `location`, `contact`, `about`, `blog_article`, `ecommerce_product`, `ecommerce_category`, `utility`, `policy`, `other`.
+  * Extract heuristics: check page URLs (e.g. `/contact`, `/about`), presence of CTA contact forms, page elements, or schema tags (e.g. `Product` schema $\rightarrow$ `ecommerce_product`).
+  * Support user profile configurations as overrides.
+* **Target File:** Implement a page classifier in `classifiers.py` or update `crawler.py`.
+* **Verification:** Unit tests verifying that various mock URLs and HTML inputs resolve to correct page types.
 
 ---
 
-### [WG-015: Implement redirect traces](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Trace HTTP redirects to identify redirect paths and separate redirects from redirect chains.
+### [WG-022: Implement site-type heuristics](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#classification--applicability-phase-3)
+* **Goal:** Classify the overall site intent based on crawl characteristics.
 * **Requirements:**
-  * Track and store all hops (URLs, status codes, protocols, transitions).
-  * Classify redirects: `redirect` (exactly 1 hop) vs `redirect_chain` (>1 hop) vs `loop`.
-* **Target File:** Implement in `crawler.py`.
-* **Verification:** Test using mock redirects and assert that single redirections are not flagged as chains.
+  * Classify site types: `local_service_business`, `local_storefront`, `multi_location_business`, `national_saas`, `ecommerce`, `publisher`, `corporate`, `other`.
+  * Heuristic signals: schema occurrences (e.g. `LocalBusiness` vs `Product`), directory patterns, contact details, map embeds, and URL patterns.
+  * Support manual user configuration overrides in the profile request.
+* **Target File:** Implement a site classifier in `classifiers.py`.
+* **Verification:** Verify that mock crawls containing map embeds and local phone numbers classify as a local business.
 
 ---
 
-### [WG-016: Implement external-link outcome classification](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Classify external links correctly to avoid false positives on link checker rules.
-* **Classifications:** `access_restricted` (e.g. 403), `rate_limited` (429), `timeout`, `dns_error`, `tls_failure`, `unverified_destination`, or `valid`.
-* **Target File:** Update the link checker logic in `checks/technical.py`.
-* **Verification:** Mock G2/CDN endpoints returning `403` or `429` and assert that the links are reclassified rather than flagged as broken.
+### [WG-023: Implement location-model classification](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#classification--applicability-phase-3)
+* **Goal:** Categorize the local operations model of the target site to prevent false positive Local SEO audits.
+* **Location Models:** `storefront` (physical address required), `service_area` (address optional, region required), `multi_location` (requires branch links/pages), `national_no_local` (Local SEO checks skipped entirely).
+* **Target File:** Implement in `classifiers.py` as part of the profiling loop.
+* **Verification:** Assert that a national SaaS profile returns `national_no_local` and an address-less plumbing profile returns `service_area`.
 
 ---
 
-### [WG-017: Implement crawl queue and budget accounting](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Enforce crawler depth limits, page crawl limits, and time-bound loops.
-* **Target File:** Update the main crawl controller in `crawler.py`.
-* **Verification:** Verify that crawler stops execution exactly at budget ceilings.
-
----
-
-### [WG-018: Implement static page snapshots](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Cache raw static responses and generate content hashes.
-* **Target File:** Update `PageData` in `crawler.py` to store response hashes.
-* **Verification:** Assert that unchanged files produce identical content hashes.
-
----
-
-### [WG-019: Implement Playwright browser renderer](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Introduce browser rendering support to render JavaScript pages.
+### [WG-024: Add applicability evaluation](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#classification--applicability-phase-3)
+* **Goal:** Filter checks dynamically based on the site profile and page classification.
 * **Requirements:**
-  * Optional configuration to launch Playwright Chromium.
-  * Capture final rendered DOM, console logs, screenshots, and loading errors.
-  * Gracefully fall back to static fetch if browser rendering fails or is disabled.
-* **Target File:** Implement a render module in `crawler.py` or a dedicated rendering helper.
-* **Verification:** Render a Javascript-heavy mock SPA and check if the dynamic DOM text is retrieved.
+  * Query the `applies_to_site_types` and `applies_to_page_types` parameters from `registry.py`.
+  * If a check is not applicable to the site profile, mark the check outcome as `status = FindingStatus.NOT_APPLICABLE` and assign an applicability reason (e.g., "Local SEO checks skipped for National SaaS profiles").
+* **Target File:** Update the check runner logic in `checks/base.py` and `grader.py`.
+* **Verification:** Verify that local business map/address checks return `NOT_APPLICABLE` on national SaaS mock crawls.
 
 ---
 
-### [WG-020: Build raw-versus-rendered comparison](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#crawl-correctness-phase-2)
-* **Goal:** Detect disparities between original HTML and browser-rendered DOM.
-* **Disparities to Trace:** Mismatched page titles, canonical tags, heading outline changes, text/word counts, or structured schemas injected at runtime.
-* **Target File:** Update the check modules or crawler.
-* **Verification:** Assert raw vs rendered differences are logged as findings.
+### [WG-025: Replace the current scoring formula](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#classification--applicability-phase-3)
+* **Goal:** Calculate and output the four separate scores defined in the scoring contract: Health, Coverage, Confidence, and Opportunity Potential.
+* **Requirements:**
+  * **Health Score:** Calculate solely from applicable and evaluated checks. Ensure `NOT_APPLICABLE` and `INFORMATIONAL` status findings do not impact the score.
+  * **Coverage Score:** Ratio of evaluated applicable check weights against all potentially applicable check weights. Unconnected APIs (GSC, GA4, CrUX) lower coverage, not health.
+  * **Confidence Score:** Factor in deterministic checks accuracy, static/rendered agreement, and classification confidence.
+  * **Opportunity Potential:** Potential upside based on prevalence of failures and ease of fixing.
+* **Target File:** Evolve `scoring.py`.
+* **Verification:** Assert that site scores are calculated and return the correct independent percentages.
 
 ---
 
-## Release Gate RG-2 Checklist
+### [WG-026: Implement contextual severity](file:///home/stevengwonder/.openclaw/workspace/repos/website-grader/PRD.md#classification--applicability-phase-3)
+* **Goal:** Adjust diagnostic check severity scale dynamically based on page type, page depth, and classification features (e.g. canonical mismatch is high-priority on homepage but low-priority on a policy utility page).
+* **Target File:** Update the check runner and checks metadata loader in `checks/base.py`.
+* **Verification:** Assert that checks executed on utility template pages output adjusted, lower priority ratings.
 
-Do not proceed beyond WG-020 until RG-2 is demonstrated. RG-2 is complete only when:
-1. Crawl budget restricts are strictly enforced.
-2. Sitemap index nested URLs are parsed successfully.
-3. Redirect chains are distinguished from single redirects.
-4. G2 and external access restricted endpoints (403/429) pass link checks as unverified/restricted.
-5. URL normalization parses and cleans duplicate trailing slashes, fragments, and tracking query keys.
-6. Robots rules parse correctly for custom/AI crawlers.
-7. Playwright renderer runs (or falls back gracefully if disabled) and returns JavaScript-rendered DOM.
-8. Raw-vs-rendered differences are tracked and output as findings.
-9. All 55 existing tests pass successfully.
+---
+
+## Release Gate RG-3 Checklist
+
+Do not proceed beyond WG-026 until RG-3 is demonstrated. RG-3 is complete only when:
+1. `classifiers.py` exists and correctly infers site profile.
+2. Page-type classification correctly categorizes mock URLs.
+3. Location models are classified (storefront, service-area, multi-location, national).
+4. Unconditional Local SEO penalties are removed for SaaS/national profiles (they resolve as `NOT_APPLICABLE` and return 100/pass scores).
+5. Scoring engine calculates four separate scores (Health, Coverage, Confidence, Opportunity) instead of a single merged number.
+6. Checkrunner updates severity ratings contextually.
+7. Existing 62 tests run and pass successfully.
