@@ -175,6 +175,7 @@ class TechnicalChecks(CheckCategory):
         )
 
     def _check_schema(self, page):
+        """Check schema/structured data — parse @graph, partial scoring for valid schema types."""
         schemas = page.soup.find_all("script", type="application/ld+json")
         schema_types = []
         valid_schemas = []
@@ -183,28 +184,54 @@ class TechnicalChecks(CheckCategory):
                 data = json.loads(s.string or s.get_text() or "{}")
                 if isinstance(data, list):
                     for item in data:
-                        t = item.get("@type", "")
+                        t = item.get("@type", "") if isinstance(item, dict) else ""
                         schema_types.append(t)
                         valid_schemas.append(item)
                 elif isinstance(data, dict):
-                    t = data.get("@type", "")
-                    schema_types.append(t)
-                    valid_schemas.append(data)
+                    # Handle @graph arrays (Yoast SEO pattern)
+                    if "@graph" in data:
+                        graph = data["@graph"]
+                        if isinstance(graph, list):
+                            for item in graph:
+                                if isinstance(item, dict):
+                                    t = item.get("@type", "")
+                                    schema_types.append(t)
+                                    valid_schemas.append(item)
+                        elif isinstance(graph, dict):
+                            t = graph.get("@type", "")
+                            schema_types.append(t)
+                            valid_schemas.append(graph)
+                    else:
+                        t = data.get("@type", "")
+                        schema_types.append(t)
+                        valid_schemas.append(data)
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        has_local_business = any("LocalBusiness" in t or "Organization" in t for t in schema_types)
-        has_faq = any("FAQPage" in t for t in schema_types)
-        has_breadcrumb = any("BreadcrumbList" in t for t in schema_types)
+        has_local_business = any("LocalBusiness" in str(t) for t in schema_types)
+        has_organization = any("Organization" in str(t) for t in schema_types)
+        has_faq = any("FAQPage" in str(t) for t in schema_types)
+        has_breadcrumb = any("BreadcrumbList" in str(t) for t in schema_types)
+        has_webpage = any("WebPage" in str(t) for t in schema_types)
+        has_website = any("WebSite" in str(t) for t in schema_types)
+        has_image = any("ImageObject" in str(t) for t in schema_types)
 
+        # Partial scoring — credit for having any valid schema
         score = 0
         if has_local_business: score += 50
-        if has_faq: score += 25
-        if has_breadcrumb: score += 25
+        if has_organization: score += 15
+        if has_faq: score += 15
+        if has_breadcrumb: score += 10
+        if has_webpage: score += 5
+        if has_website: score += 5
+        if has_image: score += 5
+        # Cap at 100
+        score = min(100, score)
         if not schemas: score = 0
 
-        passed = score >= 50  # At least LocalBusiness or Organization
+        passed = score >= 50  # At least has LocalBusiness or equivalent
 
+        types_str = ", ".join(t for t in schema_types if t) if schema_types else "none"
         return CheckResult(
             check_id="tech_schema",
             check_name="Schema / Structured Data",
@@ -212,9 +239,9 @@ class TechnicalChecks(CheckCategory):
             severity=Severity.CRITICAL,
             passed=passed,
             score=score,
-            detail=f"Found {len(schemas)} schema blocks: {', '.join(schema_types) if schema_types else 'none'}",
-            recommendation="Add LocalBusiness schema with name, address, phone, geo, and hours. Add FAQ schema for FAQ sections. Use Google's Rich Results Test to validate." if not passed else "",
-            fix_code=self._generate_local_business_schema(page),
+            detail=f"Found {len(schemas)} schema blocks: {types_str}",
+            recommendation="Add LocalBusiness schema with name, address, phone, geo, and hours. Add FAQ schema for FAQ sections. Use Google's Rich Results Test to validate." if not has_local_business else "",
+            fix_code=self._generate_local_business_schema(page) if not has_local_business else None,
             fix_difficulty="Medium (30 min)",
             impact_estimate="Critical — schema helps Google understand your business and enables rich snippets in search results",
             data={"schema_types": schema_types, "valid_schemas": valid_schemas},
@@ -519,31 +546,52 @@ class TechnicalChecks(CheckCategory):
         next_link = page.soup.find("link", rel="next")
         prev_link = page.soup.find("link", rel="prev")
         has_pagination = bool(next_link or prev_link)
-        # Pagination is optional — only flag if site has blog/content sections
+        # Pagination is optional — informational only, always passes
+        if has_pagination:
+            score = 100
+            detail = f"Pagination tags: next={'yes' if next_link else 'no'}, prev={'yes' if prev_link else 'no'}"
+            recommendation = ""
+        else:
+            score = 100  # No pagination needed — not penalized
+            detail = "No pagination tags (not required for most sites)"
+            recommendation = "If you have multi-page content (blog, portfolio), add rel=next/prev tags."
         return CheckResult(
             check_id="tech_pagination",
             check_name="Pagination Tags",
             category=self.category_name,
             severity=Severity.LOW,
-            passed=True,  # Not failing — informational
-            score=100 if has_pagination else 50,
-            detail=f"Pagination tags: next={'yes' if next_link else 'no'}, prev={'yes' if prev_link else 'no'}",
-            recommendation="If you have multi-page content (blog, portfolio), add rel=next/prev tags." if not has_pagination else "",
+            passed=True,  # Always passes — informational
+            score=score,
+            detail=detail,
+            recommendation=recommendation,
             data={"has_next": bool(next_link), "has_prev": bool(prev_link)},
         )
 
     def _check_breadcrumbs(self, page):
         breadcrumb_html = page.soup.find(class_=re.compile(r"breadcrumb", re.I))
-        # Also check for BreadcrumbList schema
+        # Also check for BreadcrumbList schema (including @graph)
         schemas = page.soup.find_all("script", type="application/ld+json")
         has_breadcrumb_schema = False
         for s in schemas:
             try:
                 data = json.loads(s.string or s.get_text() or "{}")
-                if isinstance(data, dict) and "BreadcrumbList" in str(data.get("@type", "")):
-                    has_breadcrumb_schema = True
+                items = []
+                if isinstance(data, dict):
+                    if "@graph" in data:
+                        graph = data["@graph"]
+                        items = graph if isinstance(graph, list) else [graph]
+                    else:
+                        items = [data]
+                elif isinstance(data, list):
+                    items = data
+                for item in items:
+                    if isinstance(item, dict) and "BreadcrumbList" in str(item.get("@type", "")):
+                        has_breadcrumb_schema = True
+                        break
             except (json.JSONDecodeError, TypeError):
                 pass
+            if has_breadcrumb_schema:
+                break
         has_breadcrumbs = bool(breadcrumb_html) or has_breadcrumb_schema
         return CheckResult(
             check_id="tech_breadcrumbs",

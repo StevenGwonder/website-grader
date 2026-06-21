@@ -11,13 +11,14 @@ class ContentChecks(CheckCategory):
         homepage = crawl_result.homepage
         if not homepage or not homepage.soup:
             return []
+        all_pages = [p for p in crawl_result.pages.values() if p.soup]
 
         results = []
         results.append(self._check_word_count(homepage))
         results.append(self._check_keyword_density(homepage))
         results.append(self._check_readability(homepage))
-        results.append(self._check_faq(homepage))
-        results.append(self._check_eeat(homepage))
+        results.append(self._check_faq(all_pages, crawl_result))
+        results.append(self._check_eeat(all_pages))
         results.append(self._check_content_uniqueness(crawl_result))
         results.append(self._check_title_alignment(homepage))
 
@@ -84,12 +85,9 @@ class ContentChecks(CheckCategory):
                 check_name="Keyword Density",
                 category=self.category_name,
                 severity=Severity.MEDIUM,
-                passed=False,
-                score=0,
+                passed=False, score=0,
                 detail="No content words found",
                 recommendation="Add meaningful content to your page.",
-                fix_difficulty="Medium",
-                impact_estimate="Medium"
             )
 
         word_counts = Counter(filtered_words)
@@ -112,12 +110,8 @@ class ContentChecks(CheckCategory):
             check_name="Keyword Density",
             category=self.category_name,
             severity=Severity.MEDIUM,
-            passed=passed,
-            score=score,
-            detail=detail,
-            recommendation=recommendation,
-            fix_difficulty="Medium",
-            impact_estimate="Medium",
+            passed=passed, score=score,
+            detail=detail, recommendation=recommendation,
             data={"top_words": top_words, "total_words": total_words}
         )
 
@@ -132,14 +126,10 @@ class ContentChecks(CheckCategory):
             return CheckResult(
                 check_id="content_readability",
                 check_name="Content Readability",
-                category=self.category_name,
-                severity=Severity.MEDIUM,
-                passed=False,
-                score=0,
+                category=self.category_name, severity=Severity.MEDIUM,
+                passed=False, score=0,
                 detail="No readable content found",
                 recommendation="Add well-structured, readable content to your page.",
-                fix_difficulty="Medium",
-                impact_estimate="Medium"
             )
 
         syllables = 0
@@ -167,52 +157,81 @@ class ContentChecks(CheckCategory):
         return CheckResult(
             check_id="content_readability",
             check_name="Content Readability",
-            category=self.category_name,
-            severity=Severity.MEDIUM,
-            passed=passed,
-            score=score_value,
+            category=self.category_name, severity=Severity.MEDIUM,
+            passed=passed, score=score_value,
             detail=f"Flesch score: {score:.1f} ({interpretation})",
             recommendation=recommendation,
-            fix_difficulty="Medium",
-            impact_estimate="Medium"
         )
 
-    def _check_faq(self, page):
-        soup = page.soup
+    def _check_faq(self, pages, crawl_result):
+        """Check ALL crawled pages for FAQ sections, and check for /faq page in URL paths."""
         faq_found = False
+        faq_location = ""
 
-        # Check for FAQ class
-        if soup.find(class_=re.compile('faq', re.I)):
-            faq_found = True
+        # Check if any crawled URL contains /faq
+        for url in crawl_result.pages.keys():
+            if '/faq' in url.lower():
+                faq_found = True
+                faq_location = url
+                break
 
-        # Check for FAQPage schema
+        # Check all pages for FAQ class/section
         if not faq_found:
-            scripts = soup.find_all('script', type='application/ld+json')
-            for script in scripts:
-                try:
-                    data = json.loads(script.string)
-                    if isinstance(data, dict) and data.get('@type') == 'FAQPage':
+            for page in pages:
+                # Check for FAQ class
+                if page.soup.find(class_=re.compile('faq', re.I)):
+                    faq_found = True
+                    faq_location = page.url
+                    break
+                # Check for FAQ heading
+                for tag in page.soup.find_all(['h1', 'h2', 'h3']):
+                    if tag.get_text(strip=True).lower() in ('faq', 'frequently asked questions', 'f.a.q.'):
                         faq_found = True
+                        faq_location = page.url
                         break
-                    if isinstance(data, list):
-                        for item in data:
+                if faq_found:
+                    break
+
+        # Check all pages for FAQPage schema
+        if not faq_found:
+            for page in pages:
+                for script in page.soup.find_all('script', type='application/ld+json'):
+                    try:
+                        data = json.loads(script.string or script.get_text() or "{}")
+                        items = []
+                        if isinstance(data, dict):
+                            if '@graph' in data:
+                                items = data['@graph'] if isinstance(data['@graph'], list) else [data['@graph']]
+                            else:
+                                items = [data]
+                        elif isinstance(data, list):
+                            items = data
+                        for item in items:
                             if isinstance(item, dict) and item.get('@type') == 'FAQPage':
                                 faq_found = True
+                                faq_location = page.url
                                 break
-                except Exception:
-                    continue
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                if faq_found:
+                    break
 
         if faq_found:
-            passed = True
-            score = 100
-            detail = "FAQ section found"
-            recommendation = "Good practice. Keep FAQ section updated with relevant questions."
-        else:
-            passed = False
-            score = 0
-            detail = "No FAQ section found"
-            recommendation = "Consider adding an FAQ section to address common user questions and improve SEO."
-            fix_code = '''<script type="application/ld+json">
+            short_url = faq_location.replace("https://", "").replace("http://", "")[:50]
+            return CheckResult(
+                check_id="content_faq", check_name="FAQ Section",
+                category=self.category_name, severity=Severity.MEDIUM,
+                passed=True, score=100,
+                detail=f"FAQ section found on {short_url}",
+                recommendation="Good practice. Keep FAQ section updated with relevant questions.",
+            )
+        return CheckResult(
+            check_id="content_faq", check_name="FAQ Section",
+            category=self.category_name, severity=Severity.MEDIUM,
+            passed=False, score=0,
+            detail="No FAQ section found on any crawled page",
+            recommendation="Consider adding an FAQ section to address common user questions and improve SEO.",
+            fix_code='''<script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -223,53 +242,77 @@ class ContentChecks(CheckCategory):
       "@type": "Answer",
       "text": "Example answer text here."
     }
-  },{
-    "@type": "Question",
-    "name": "Example Question 2",
-    "acceptedAnswer": {
-      "@type": "Answer",
-      "text": "Example answer text here."
-    }
   }]
 }
-</script>'''
-
-        return CheckResult(
-            check_id="content_faq",
-            check_name="FAQ Section",
-            category=self.category_name,
-            severity=Severity.MEDIUM,
-            passed=passed,
-            score=score,
-            detail=detail,
-            recommendation=recommendation,
-            fix_code=fix_code if not faq_found else None,
-            fix_difficulty="Easy",
-            impact_estimate="Medium"
+</script>''',
         )
 
-    def _check_eeat(self, page):
+    def _check_eeat(self, pages):
+        """Scan ALL crawled pages for E-E-A-T signals with expanded detection."""
         signals = []
-        soup = page.soup
-        text = soup.get_text().lower()
-        if soup.find(class_=re.compile(r'author')) or soup.find(id=re.compile(r'author')):
-            signals.append("author bio")
-        if soup.find('a', string=re.compile(r'about', re.I)):
-            signals.append("about page link")
-        if re.search(r'licen[sc]e.*?#?\d+', text):
-            signals.append("license number")
-        if re.search(r'certified|accredited|bonded|insured', text):
-            signals.append("certifications")
-        if re.search(r'since\s+19\d{2}|since\s+20\d{2}|\d+\s+years', text):
-            signals.append("years in business")
+        for page in pages:
+            text = page.soup.get_text().lower()
+            # Author bio
+            if page.soup.find(class_=re.compile(r'author')) or page.soup.find(id=re.compile(r'author')):
+                if "author bio" not in signals:
+                    signals.append("author bio")
+            # About page link
+            if page.soup.find('a', string=re.compile(r'about', re.I)):
+                if "about page link" not in signals:
+                    signals.append("about page link")
+            # License number
+            if re.search(r'licen[sc]e.*?#?\d+', text):
+                if "license number" not in signals:
+                    signals.append("license number")
+            # Licensed / bonded / insured
+            if re.search(r'licen[sc]ed|bonded|insured', text):
+                if "licensed/bonded/insured" not in signals:
+                    signals.append("licensed/bonded/insured")
+            # Certified / accredited
+            if re.search(r'certified|accredited', text):
+                if "certifications" not in signals:
+                    signals.append("certifications")
+            # BBB
+            if re.search(r'\bbb\b|better business bureau', text):
+                if "BBB accreditation" not in signals:
+                    signals.append("BBB accreditation")
+            # BuildZoom
+            if re.search(r'buildzoom', text):
+                if "BuildZoom score" not in signals:
+                    signals.append("BuildZoom score")
+            # Years in business / generations
+            if re.search(r'since\s+19\d{2}|since\s+20\d{2}|\d+\s+years', text):
+                if "years in business" not in signals:
+                    signals.append("years in business")
+            if re.search(r'\d+\s+generations', text):
+                if "generations of experience" not in signals:
+                    signals.append("generations of experience")
+            # Reviews / testimonials
+            if re.search(r'\d+\+?\s*(?:reviews?|testimonials?)|five.?star|★★★★★|5.?star', text):
+                if "reviews/testimonials" not in signals:
+                    signals.append("reviews/testimonials")
+            # Awards
+            if re.search(r'award|winner|recognized', text):
+                if "awards" not in signals:
+                    signals.append("awards")
+            # Portfolio / gallery
+            if re.search(r'portfolio|gallery|our\s+work', text):
+                if "portfolio/gallery" not in signals:
+                    signals.append("portfolio/gallery")
+            # Warranty / guarantee
+            if re.search(r'warranty|guarantee', text):
+                if "warranty/guarantee" not in signals:
+                    signals.append("warranty/guarantee")
+
         passed = len(signals) >= 2
+        score = min(100, len(signals) * 20) if signals else 0
         detail = f"Found {len(signals)} E-E-A-T signals: {', '.join(signals)}" if signals else "No E-E-A-T signals found"
         return CheckResult(
             check_id="content_eeat", check_name="E-E-A-T Signals",
             category=self.category_name, severity=Severity.MEDIUM,
-            passed=passed, score=100 if passed else 0,
+            passed=passed, score=score,
             detail=detail,
-            recommendation="Add author bios, certifications, and business history to build trust.",
+            recommendation="Add author bios, certifications, and business history to build trust." if not passed else "",
             data={"signals": signals}
         )
 

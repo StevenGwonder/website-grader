@@ -1,10 +1,29 @@
 #!/usr/bin/env python3
+<<<<<<< HEAD
 """
 HTML report generator — self-contained, NWP branded, printable.
 Implements a next-generation dark dashboard with orange/blue brand colors,
 explicit "Where" & "Why" structured outputs, and an AI Bridge payload exporter.
 """
 import json
+=======
+"""HTML report generator — self-contained, NWP branded, printable.
+
+Generates a single-file HTML audit report with:
+  - Score card with grade letter
+  - Category score bars (weighted)
+  - Prioritized action plan (top 10 by severity)
+  - NAP consistency table
+  - Performance metrics table
+  - All checks with pass/fail, severity dots, recommendations, fix code
+  - One-click "Copy JSON for AI" button with the full report data embedded
+  - Print-friendly styling
+  - XSS-safe: all user-derived strings are html.escape()'d
+"""
+import html as _html
+import json
+from datetime import datetime
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
 from checks.base import Severity
 
 # NWP brand colors
@@ -94,11 +113,30 @@ WHY_MAP = {
     "conversion_contact_form": "On-page contact forms lower the effort required to contact you, maximizing lead capture volume compared to simple email links."
 }
 
+
+def _esc(s) -> str:
+    """HTML-escape a string, safely handling None."""
+    if s is None:
+        return ""
+    return _html.escape(str(s), quote=True)
+
+
 def _score_color(score):
+<<<<<<< HEAD
     if score >= 80: return "#10b981" # Emerald Green
     if score >= 60: return "#f59e0b" # Amber
     if score >= 40: return ORANGE
     return "#ef4444"                 # Rose Red
+=======
+    if score >= 80:
+        return "#22c55e"
+    if score >= 60:
+        return "#f59e0b"
+    if score >= 40:
+        return ORANGE
+    return "#ef4444"
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
+
 
 def _grade_color(grade):
     return {
@@ -109,16 +147,23 @@ def _grade_color(grade):
         "F": "#ef4444"
     }.get(grade, "#ef4444")
 
+
 def _bar(label, score, weight):
     color = _score_color(score)
     return f"""
     <div class="bar-row">
+<<<<<<< HEAD
       <span class="bar-label">{label} <small>({weight}%)</small></span>
       <div class="bar-track">
         <div class="bar-fill" style="width:{score}%;background:{color}; box-shadow: 0 0 10px {color}80;"></div>
       </div>
+=======
+      <span class="bar-label">{_esc(label)} <small>({weight}%)</small></span>
+      <div class="bar-track"><div class="bar-fill" style="width:{score}%;background:{color}"></div></div>
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
       <span class="bar-score">{score}</span>
     </div>"""
+
 
 def _check_row(r):
     icon = "✓" if r.passed else "✗"
@@ -140,6 +185,7 @@ def _check_row(r):
         
     code_section = ""
     if r.fix_code and not r.passed:
+<<<<<<< HEAD
         code_section = f"""
         <div class="fix-code-block">
           <div class="code-header">
@@ -177,8 +223,23 @@ def _check_row(r):
         </div>
         {fix_section}
         {code_section}
+=======
+        fix = f'<details class="fix"><summary>Fix code</summary><pre>{_esc(r.fix_code)}</pre></details>'
+    rec = ""
+    if r.recommendation and not r.passed:
+        rec = f'<div class="check-rec">{_esc(r.recommendation)}</div>'
+    return f"""
+    <div class="check">
+      <span class="check-icon">{icon}</span>
+      <div>
+        <div class="check-name"><span class="sev-dot" style="background:{color}"></span>{_esc(r.check_name)}</div>
+        <div class="check-detail">{_esc(r.detail)}</div>
+        {rec}
+        {fix}
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
       </div>
     </div>"""
+
 
 def _nap_table(crawl_result, all_results):
     nap_result = next((r for r in all_results if r.check_id == "local_seo_nap_consistency"), None)
@@ -187,6 +248,7 @@ def _nap_table(crawl_result, all_results):
     rows = ""
     for url, nap in nap_result.data["nap_per_page"].items():
         short_url = url.replace("https://", "").replace("http://", "")[:40]
+<<<<<<< HEAD
         rows += f"""
         <tr>
           <td><strong>{short_url}</strong></td>
@@ -210,6 +272,21 @@ def _nap_table(crawl_result, all_results):
         </tbody>
       </table>
     </div>"""
+=======
+        addr = nap.get("address") or "—"
+        addr = addr[:40] if addr != "—" else addr
+        rows += (
+            f"<tr><td>{_esc(short_url)}</td><td>{_esc(nap.get('name') or '—')}</td>"
+            f"<td>{_esc(nap.get('phone') or '—')}</td><td>{_esc(addr)}</td></tr>"
+        )
+    return f"""
+    <h2>NAP Consistency</h2>
+    <table class="data-table">
+      <thead><tr><th>Page</th><th>Name</th><th>Phone</th><th>Address</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>"""
+
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
 
 def _perf_table(crawl_result):
     hp = crawl_result.homepage
@@ -218,7 +295,14 @@ def _perf_table(crawl_result):
     size_kb = len(hp.html) / 1024
     encoding = hp.headers.get("content-encoding", "none")
     cache = "yes" if hp.headers.get("cache-control") else "no"
+    rows = (
+        f"<tr><td>TTFB</td><td>{hp.ttfb_ms:.0f}ms</td></tr>"
+        f"<tr><td>Page Weight</td><td>{size_kb}KB</td></tr>"
+        f"<tr><td>Compression</td><td>{_esc(encoding)}</td></tr>"
+        f"<tr><td>Cache Headers</td><td>{_esc(cache)}</td></tr>"
+    )
     return f"""
+<<<<<<< HEAD
     <div class="table-container">
       <table class="perf-table">
         <thead>
@@ -252,6 +336,14 @@ def _perf_table(crawl_result):
         </tbody>
       </table>
     </div>"""
+=======
+    <h2>Performance Metrics</h2>
+    <table class="data-table perf-table">
+      <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>"""
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
+
 
 def _action_plan(all_results):
     sev_weight = {Severity.CRITICAL: 4, Severity.HIGH: 3, Severity.MEDIUM: 2, Severity.LOW: 1, Severity.INFO: 0.5}
@@ -262,6 +354,7 @@ def _action_plan(all_results):
         return '<div class="passed-alert">🎉 **Congratulations!** No critical or failed issues were detected on this site.</div>'
     items = ""
     for i, r in enumerate(top, 1):
+<<<<<<< HEAD
         color = SEVERITY_COLORS.get(r.severity, "#9ca3af")
         items += f"""
         <div class="action-item">
@@ -278,8 +371,46 @@ def _action_plan(all_results):
           </div>
         </div>"""
     return f"""<div class="action-plan-list">{items}</div>"""
+=======
+        items += (
+            f'<div class="action-item"><span class="action-num">{i}</span>'
+            f'<div><strong>{_esc(r.check_name)}</strong> — {_esc(r.detail)}<br>'
+            f'<small>{_esc(r.recommendation)}</small></div></div>'
+        )
+    return f'<h2>Prioritized Action Plan</h2><div class="action-list">{items}</div>'
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
+
+
+def _build_report_json(url, score_data, all_results, crawl_result):
+    """Build the same JSON structure that --json outputs, for embedding in HTML."""
+    return {
+        "url": url,
+        "score": score_data,
+        "checks": [
+            {
+                "check_id": r.check_id,
+                "name": r.check_name,
+                "category": r.category,
+                "severity": r.severity.value,
+                "passed": r.passed,
+                "score": r.score,
+                "detail": r.detail,
+                "recommendation": r.recommendation,
+            }
+            for r in all_results
+        ],
+    }
+
 
 def generate_report(crawl_result, all_results, score_data, fixes, url):
+<<<<<<< HEAD
+=======
+    """Generate self-contained HTML report.
+
+    Note: ``fixes`` is accepted for backward compatibility but fix_code is
+    rendered directly from each CheckResult.  The parameter is not used here.
+    """
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
     grade = score_data["grade"]
     score = score_data["overall_score"]
     gcolor = _grade_color(grade)
@@ -291,6 +422,7 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     failed_count = sum(1 for r in all_results if not r.passed)
     passed_count = len(all_results) - failed_count
     total_count = len(all_results)
+<<<<<<< HEAD
     high_failed_count = sum(1 for r in all_results if not r.passed and r.severity in (Severity.CRITICAL, Severity.HIGH))
     
     date = crawl_result.homepage.headers.get("date", "") if crawl_result.homepage else ""
@@ -336,6 +468,116 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     # SVG circular gauge stroke-dashoffset calculations
     # Circumference = 264. Dashoffset = 264 * (1 - score / 100)
     stroke_offset = 264 * (1 - score / 100.0)
+=======
+
+    # Format the date nicely
+    raw_date = crawl_result.homepage.headers.get("date", "") if crawl_result.homepage else ""
+    if raw_date:
+        try:
+            # HTTP date format: "Mon, 22 Jun 2026 16:54:23 GMT"
+            dt = datetime.strptime(raw_date, "%a, %d %b %Y %H:%M:%S %Z")
+            date_str = dt.strftime("%B %d, %Y")
+        except (ValueError, TypeError):
+            date_str = datetime.now().strftime("%B %d, %Y")
+    else:
+        date_str = datetime.now().strftime("%B %d, %Y")
+
+    # Build the full report JSON for the copy button
+    report_json = _build_report_json(url, score_data, all_results, crawl_result)
+    # json.dumps with ensure_ascii=False keeps readable text; we then escape for HTML
+    json_str = json.dumps(report_json, indent=2, ensure_ascii=False)
+    json_escaped = _esc(json_str)
+
+    return f"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Website Audit: {_esc(url)} — Score {score}/100</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box }}
+body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:{BG}; color:{TEXT}; line-height:1.6 }}
+.container {{ max-width:900px; margin:0 auto; padding:40px 20px }}
+h1 {{ font-size:2.4em; color:{ORANGE}; margin-bottom:4px }}
+h2 {{ font-size:1.3em; color:{BLUE}; margin:24px 0 12px }}
+.subtitle {{ color:{MUTED}; margin-bottom:24px }}
+.card {{ background:{CARD}; border:1px solid {BORDER}; border-radius:12px; padding:24px; margin-bottom:20px }}
+.score-box {{ text-align:center; margin-bottom:20px }}
+.score-num {{ font-size:3.5em; font-weight:800; color:{gcolor} }}
+.score-grade {{ font-size:2em; font-weight:700; color:{gcolor} }}
+.score-meta {{ color:{MUTED}; margin-top:8px }}
+.bar-row {{ display:flex; align-items:center; gap:12px; margin-bottom:8px }}
+.bar-label {{ width:180px; font-size:0.9em; text-align:right; flex-shrink:0 }}
+.bar-label small {{ color:{MUTED} }}
+.bar-track {{ flex:1; background:{BORDER}; border-radius:8px; height:24px; overflow:hidden }}
+.bar-fill {{ height:100%; border-radius:8px; transition:width 0.3s }}
+.bar-score {{ width:40px; text-align:left; font-weight:600; flex-shrink:0 }}
+.check {{ display:flex; gap:14px; padding:14px 0; border-bottom:1px solid {BORDER} }}
+.check:last-child {{ border-bottom:none }}
+.check-icon {{ font-size:1.4em; flex-shrink:0 }}
+.check-name {{ font-weight:600; margin-bottom:4px; display:flex; align-items:center; gap:8px }}
+.sev-dot {{ width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0 }}
+.check-detail {{ font-size:0.9em; color:{MUTED}; margin-bottom:4px; word-break:break-word }}
+.check-rec {{ font-size:0.85em; color:{BLUE}; margin-top:4px }}
+.fix {{ margin-top:8px }}
+.fix summary {{ cursor:pointer; color:{ORANGE}; font-size:0.85em }}
+.fix pre {{ background:{BG}; border:1px solid {BORDER}; border-radius:8px; padding:12px; overflow-x:auto; font-size:0.8em; margin-top:8px; white-space:pre-wrap; word-break:break-word }}
+/* Tables */
+.data-table {{ width:100%; border-collapse:collapse; margin-bottom:8px }}
+.data-table th, .data-table td {{ padding:10px; text-align:left; border-bottom:1px solid {BORDER}; font-size:0.85em; word-break:break-word }}
+.data-table th {{ color:{BLUE}; font-weight:600 }}
+.data-table thead th {{ border-bottom:2px solid {BORDER} }}
+.data-table tbody tr:last-child td {{ border-bottom:none }}
+/* Action plan */
+.action-list {{ margin-top:12px }}
+.action-item {{ display:flex; gap:14px; padding:12px 0; border-bottom:1px solid {BORDER} }}
+.action-item:last-child {{ border-bottom:none }}
+.action-num {{ font-size:1.5em; font-weight:800; color:{ORANGE}; flex-shrink:0; width:30px }}
+/* JSON copy button */
+.json-copy-section {{ margin-top:20px; padding-top:20px; border-top:1px solid {BORDER} }}
+.json-copy-btn {{
+  display:inline-flex; align-items:center; gap:8px;
+  background:{ORANGE}; color:#fff; border:none; border-radius:8px;
+  padding:12px 24px; font-size:0.95em; font-weight:600;
+  cursor:pointer; transition:background 0.2s, transform 0.1s;
+}}
+.json-copy-btn:hover {{ background:#c0653a }}
+.json-copy-btn:active {{ transform:scale(0.97) }}
+.json-copy-btn.copied {{ background:#22c55e }}
+.json-copy-btn .icon {{ font-size:1.1em }}
+.json-copy-hint {{ font-size:0.8em; color:{MUTED}; margin-top:8px }}
+footer {{ text-align:center; padding:30px; color:#555; font-size:0.85em }}
+a {{ color:{BLUE}; text-decoration:none }}
+/* Mobile responsive */
+@media (max-width:640px) {{
+  .container {{ padding:20px 12px }}
+  h1 {{ font-size:1.8em }}
+  .bar-row {{ flex-direction:column; align-items:flex-start; gap:4px }}
+  .bar-label {{ width:100%; text-align:left }}
+  .bar-track {{ width:100% }}
+  .bar-score {{ text-align:left; width:auto }}
+  .card {{ padding:16px }}
+  .check {{ gap:8px }}
+  .check-icon {{ font-size:1.2em }}
+  .data-table th, .data-table td {{ padding:6px; font-size:0.8em }}
+}}
+/* Print */
+@media print {{
+  body {{ background:white; color:black; font-size:11pt }}
+  .card {{ border:1px solid #ccc; background:white; page-break-inside:avoid }}
+  .bar-track {{ background:#eee; border:1px solid #ccc }}
+  .json-copy-section {{ display:none }}
+  .check-icon {{ font-size:1em }}
+  h1 {{ color:#D97548 }}
+  h2 {{ color:#333 }}
+  .check-detail, .bar-label small, .score-meta {{ color:#666 }}
+  .check-rec {{ color:#0066cc }}
+  .fix pre {{ background:#f5f5f5; border:1px solid #ddd; color:#333 }}
+  .data-table th {{ color:#333 }}
+  .data-table th, .data-table td {{ border-color:#ccc }}
+  footer {{ color:#999 }}
+}}
+</style></head><body><div class="container">
+<h1>Website Audit Report</h1>
+<p class="subtitle">{_esc(url)} — {date_str}</p>
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
 
     # Load templates from fixes
     robots_tmpl = fixes.get("templates", {}).get("robots_txt", "")
@@ -389,6 +631,7 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
       padding: 40px 20px;
     }
 
+<<<<<<< HEAD
     /* Header & Branding */
     header {
       display: flex;
@@ -1477,3 +1720,74 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     output = output.replace("{AI_JSON_PAYLOAD}", json.dumps(ai_json_payload, indent=2).replace("</", "<\\/"))
     
     return output
+=======
+<div class="card json-copy-section">
+  <h2>Copy Report for AI Analysis</h2>
+  <p style="color:{MUTED};font-size:0.9em;margin-bottom:12px">
+    Click the button below to copy the full report as JSON. Paste it into any AI
+    (ChatGPT, Claude, etc.) for deeper analysis, prioritized fixes, and action plans.
+  </p>
+  <button class="json-copy-btn" onclick="copyReportJSON()">
+    <span class="icon">📋</span> Copy JSON Report
+  </button>
+  <div class="json-copy-hint" id="copy-hint"></div>
+</div>
+
+<footer>Powered by <strong style="color:{ORANGE}">North Web Pro</strong> — Your guide in the digital wilderness</footer>
+</div>
+
+<script type="application/json" id="report-json">{json_escaped}</script>
+<script>
+function copyReportJSON() {{
+  const btn = document.querySelector('.json-copy-btn');
+  const hint = document.getElementById('copy-hint');
+  const data = document.getElementById('report-json').textContent;
+
+  function onSuccess() {{
+    btn.classList.add('copied');
+    btn.querySelector('.icon').textContent = '✅';
+    btn.lastChild.textContent = ' Copied!';
+    hint.textContent = 'JSON copied to clipboard. Paste into your AI tool.';
+    hint.style.color = '#22c55e';
+    setTimeout(() => {{
+      btn.classList.remove('copied');
+      btn.querySelector('.icon').textContent = '📋';
+      btn.lastChild.textContent = ' Copy JSON Report';
+      hint.textContent = '';
+    }}, 4000);
+  }}
+
+  function onFail() {{
+    hint.textContent = 'Could not copy automatically. Select the JSON block below and press Ctrl+C.';
+    hint.style.color = '#ef4444';
+  }}
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {{
+    navigator.clipboard.writeText(data).then(onSuccess).catch(() => {{
+      // Fallback: create a temporary textarea
+      const ta = document.createElement('textarea');
+      ta.value = data;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {{ document.execCommand('copy'); onSuccess(); }}
+      catch(e) {{ onFail(); }}
+      document.body.removeChild(ta);
+    }});
+  }} else {{
+    // Older browser fallback
+    const ta = document.createElement('textarea');
+    ta.value = data;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {{ document.execCommand('copy'); onSuccess(); }}
+    catch(e) {{ onFail(); }}
+    document.body.removeChild(ta);
+  }}
+}}
+</script>
+</body></html>"""
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)

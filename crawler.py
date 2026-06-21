@@ -11,12 +11,12 @@ from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 
 PRIORITY_PATHS = [
-    re.compile(r'/about'),
     re.compile(r'/contact'),
+    re.compile(r'/about'),
     re.compile(r'/services'),
     re.compile(r'/service'),
-    re.compile(r'/team'),
     re.compile(r'/faq'),
+    re.compile(r'/team'),
     re.compile(r'/blog'),
     re.compile(r'/portfolio'),
 ]
@@ -529,6 +529,7 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 15, enable_playwrigh
     if result.robots_txt:
         result.robots_parser = RobotsParser(result.robots_txt)
 
+<<<<<<< HEAD
     sitemap_url = urljoin(url, '/sitemap.xml')
     crawled_sitemaps = set()
     _fetch_and_parse_sitemap(sitemap_url, timeout, session, result, crawled_sitemaps)
@@ -542,6 +543,59 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 15, enable_playwrigh
                 result.discovered_urls.add(full_url)
 
     record_discovered_links(homepage)
+=======
+    # Try to find sitemap URL from robots.txt first, then fall back to /sitemap.xml
+    sitemap_urls_to_try = []
+    if result.robots_txt:
+        for line in result.robots_txt.splitlines():
+            if line.lower().startswith('sitemap:'):
+                sm_url = line.split(':', 1)[1].strip()
+                if sm_url:
+                    sitemap_urls_to_try.append(sm_url)
+
+    # Always try /sitemap.xml as fallback
+    default_sitemap = urljoin(url, '/sitemap.xml')
+    if default_sitemap not in sitemap_urls_to_try:
+        sitemap_urls_to_try.append(default_sitemap)
+
+    for sm_url in sitemap_urls_to_try:
+        sitemap = _fetch_page(sm_url, timeout, session)
+        if sitemap.error or sitemap.status_code >= 400:
+            continue
+        result.sitemap_xml = sitemap.html
+        # Parse sitemap — support both regular sitemaps and sitemap index files
+        try:
+            root = ET.fromstring(sitemap.html)
+            ns = {'sm': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+
+            # Check if this is a sitemap index (contains <sitemap> children)
+            sub_sitemaps = root.findall('.//sm:sitemap/sm:loc', namespaces=ns)
+            if sub_sitemaps:
+                # Sitemap index — fetch each sub-sitemap
+                for sub_loc in sub_sitemaps:
+                    if sub_loc.text and len(result.sitemap_urls) < 500:
+                        sub_sm = _fetch_page(sub_loc.text.strip(), timeout, session)
+                        if sub_sm.html:
+                            try:
+                                sub_root = ET.fromstring(sub_sm.html)
+                                sub_urls = sub_root.findall('.//sm:url/sm:loc', namespaces=ns)
+                                for u_loc in sub_urls:
+                                    if u_loc.text:
+                                        result.sitemap_urls.append(u_loc.text.strip())
+                            except ET.ParseError:
+                                pass
+            else:
+                # Regular sitemap — extract URLs directly
+                url_locs = root.findall('.//sm:url/sm:loc', namespaces=ns)
+                for u_loc in url_locs:
+                    if u_loc.text:
+                        result.sitemap_urls.append(u_loc.text.strip())
+        except ET.ParseError:
+            pass
+>>>>>>> 7652a74 (fix: multi-page scanning, check accuracy, and report improvements)
+
+        if result.sitemap_urls:
+            break  # Found a working sitemap, stop trying alternatives
 
     internal_links = _extract_internal_links(homepage.soup, url, result.base_domain)
     filtered_links = []
