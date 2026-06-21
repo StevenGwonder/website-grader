@@ -41,6 +41,10 @@ class CrawlResult:
     sitemap_xml: str = ""
     sitemap_urls: List[str] = field(default_factory=list)
     error: Optional[str] = None
+    discovered_urls: Set[str] = field(default_factory=set)
+    crawled_urls: Set[str] = field(default_factory=set)
+    excluded_urls: Set[str] = field(default_factory=set)
+    fetch_failures: Dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
         self.base_domain = urlparse(self.base_url).netloc
@@ -99,8 +103,13 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 15) -> CrawlResult:
     homepage = _fetch_page(url, timeout, session)
     if homepage.error:
         result.error = homepage.error
+        result.fetch_failures[url] = homepage.error
         return result
+    if homepage.status_code >= 400:
+        result.fetch_failures[url] = f"HTTP {homepage.status_code}"
+    
     result.pages[url] = homepage
+    result.crawled_urls.add(url)
 
     robots_url = urljoin(url, '/robots.txt')
     robots = _fetch_page(robots_url, timeout, session)
@@ -120,6 +129,15 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 15) -> CrawlResult:
         except Exception:
             pass
 
+    def record_discovered_links(page):
+        if page.soup:
+            for a in page.soup.find_all('a', href=True):
+                href = a['href']
+                full_url = urljoin(page.url, href)
+                result.discovered_urls.add(full_url)
+
+    record_discovered_links(homepage)
+
     internal_links = _extract_internal_links(homepage.soup, url, result.base_domain)
     priority_links = [link for link in internal_links if any(p.search(link) for p in PRIORITY_PATHS)]
     remaining_links = [link for link in internal_links if link not in priority_links]
@@ -132,12 +150,27 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 15) -> CrawlResult:
         if next_url in crawled:
             continue
         page = _fetch_page(next_url, timeout, session)
-        result.pages[next_url] = page
         crawled.add(next_url)
-        if not page.error and page.soup:
+        
+        if page.error or page.status_code >= 400:
+            result.fetch_failures[next_url] = page.error or f"HTTP {page.status_code}"
+            continue
+
+        result.pages[next_url] = page
+        result.crawled_urls.add(next_url)
+        record_discovered_links(page)
+        
+        if page.soup:
             new_links = _extract_internal_links(page.soup, next_url, result.base_domain)
             for link in new_links:
                 if link not in crawled and link not in to_crawl:
                     to_crawl.append(link)
 
+    # Excluded links are internal links that were discovered but not crawled (nor failed)
+    for link in result.discovered_urls:
+        parsed = urlparse(link)
+        if parsed.netloc == result.base_domain and link not in result.crawled_urls and link not in result.fetch_failures:
+            result.excluded_urls.add(link)
+
     return result
+

@@ -33,6 +33,14 @@ def main():
     score_data = compute_score(all_results)
     print(f"  Score: {score_data['overall_score']}/100 (Grade {score_data['grade']})")
 
+    # Print crawl audit coverage metadata
+    print("\n  Audit Coverage Metadata:")
+    print(f"    Discovered URLs: {len(crawl_result.discovered_urls)}")
+    print(f"    Crawled URLs: {len(crawl_result.crawled_urls)}")
+    print(f"    Excluded URLs: {len(crawl_result.excluded_urls)}")
+    print(f"    Fetch failures: {len(crawl_result.fetch_failures)}")
+    print(f"    Evaluated checks: {len(all_results)} (0 unavailable)")
+
     fixes = generate_fixes(crawl_result, all_results)
 
     try:
@@ -48,6 +56,19 @@ def main():
         report_data = {
             "url": args.url,
             "score": score_data,
+            "metadata": {
+                "discovered_urls": list(crawl_result.discovered_urls),
+                "crawled_urls": list(crawl_result.crawled_urls),
+                "excluded_urls": list(crawl_result.excluded_urls),
+                "fetch_failures": crawl_result.fetch_failures,
+                "external_integrations": {
+                    "google_search_console": "unavailable",
+                    "google_analytics_4": "unavailable",
+                    "crux": "unavailable"
+                },
+                "evaluated_checks_count": len(all_results),
+                "unavailable_checks_count": 0
+            },
             "checks": [{"check_id": r.check_id, "name": r.check_name, "category": r.category,
                         "severity": r.severity.value, "passed": r.passed, "score": r.score,
                         "detail": r.detail, "recommendation": r.recommendation}
