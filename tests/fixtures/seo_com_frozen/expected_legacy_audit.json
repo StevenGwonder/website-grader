@@ -1,0 +1,293 @@
+{
+  "audit_meta": {
+    "target_url": "https://seo.com",
+    "audit_date": "Sat, 20 Jun 2026 01:07:22 GMT",
+    "pages_crawled": [
+      "https://seo.com",
+      "https://seo.com/services/",
+      "https://seo.com/ai/services/",
+      "https://seo.com/services/ppc-management/",
+      "https://seo.com/contact/"
+    ],
+    "overall_score": 53,
+    "overall_grade": "F",
+    "checks_summary": {
+      "total": 53,
+      "passed": 29,
+      "failed": 24,
+      "critical_and_high_failed": 12
+    }
+  },
+  "category_scores": {
+    "Technical SEO": {
+      "score": 62,
+      "weight": 25
+    },
+    "Local SEO": {
+      "score": 0,
+      "weight": 20
+    },
+    "Performance": {
+      "score": 82,
+      "weight": 15
+    },
+    "Content Quality": {
+      "score": 65,
+      "weight": 15
+    },
+    "Security": {
+      "score": 76,
+      "weight": 10
+    },
+    "Accessibility": {
+      "score": 33,
+      "weight": 10
+    },
+    "Social & Conversion": {
+      "score": 100,
+      "weight": 5
+    }
+  },
+  "failures": [
+    {
+      "check_id": "tech_headings",
+      "check_name": "Heading Hierarchy",
+      "category": "Technical SEO",
+      "severity": "high",
+      "where_value": "H1 count: 1, total headings: 68, skipped levels: True",
+      "why_impact": "Proper heading tags (H1-H6) act as a table of contents for crawlers and screen readers. Correct hierarchy allows search engines to understand the core topics of your page and prevents indexing confusion.",
+      "how_to_fix": "Use exactly one H1 per page. Don't skip heading levels (H1\u2192H3 is bad). Use H2 for sections, H3 for subsections.",
+      "fix_code": null
+    },
+    {
+      "check_id": "tech_schema",
+      "check_name": "Schema / Structured Data",
+      "category": "Technical SEO",
+      "severity": "critical",
+      "where_value": "Found 1 schema blocks: ",
+      "why_impact": "Structured data (JSON-LD) translates human-readable content into machine-readable formats. It enables rich snippets (stars, FAQs, event details) in search results, increasing search visibility and user trust.",
+      "how_to_fix": "Add LocalBusiness schema with name, address, phone, geo, and hours. Add FAQ schema for FAQ sections. Use Google's Rich Results Test to validate.",
+      "fix_code": "{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"LocalBusiness\",\n  \"name\": \"#1 SEO Company | SEO.com - The Authority for All Things SEO\",\n  \"telephone\": \"+1-555-555-5555\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"123 Main St\",\n    \"addressLocality\": \"City\",\n    \"addressRegion\": \"ST\",\n    \"postalCode\": \"00000\",\n    \"addressCountry\": \"US\"\n  },\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": 0.0,\n    \"longitude\": 0.0\n  },\n  \"openingHoursSpecification\": [\n    {\n      \"@type\": \"OpeningHoursSpecification\",\n      \"dayOfWeek\": [\n        \"Monday\",\n        \"Tuesday\",\n        \"Wednesday\",\n        \"Thursday\",\n        \"Friday\"\n      ],\n      \"opens\": \"08:00\",\n      \"closes\": \"17:00\"\n    }\n  ],\n  \"url\": \"https://www.seo.com/\"\n}"
+    },
+    {
+      "check_id": "tech_sitemap",
+      "check_name": "XML Sitemap",
+      "category": "Technical SEO",
+      "severity": "high",
+      "where_value": "Sitemap found with 0 URLs",
+      "why_impact": "An XML sitemap acts as a roadmap for search indexers, ensuring all page URLs are discovered and indexed, including deep-nested content that crawler bots might otherwise miss.",
+      "how_to_fix": "Create an XML sitemap at /sitemap.xml listing all your pages. Submit it in Google Search Console.",
+      "fix_code": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url><loc>https://yourdomain.com/<\/loc><\/url>\n<\/urlset>"
+    },
+    {
+      "check_id": "tech_broken_links",
+      "check_name": "Broken Links",
+      "category": "Technical SEO",
+      "severity": "critical",
+      "where_value": "Checked 198 links, found 3 broken",
+      "why_impact": "Broken links (404/500 errors) frustrate visitors, drain your crawl budget, and signal to search engines that the website is neglected, leading to lower search rankings.",
+      "how_to_fix": "Fix 3 broken links. These hurt UX and SEO.",
+      "fix_code": "<!-- Fix: https://www.g2.com/products/webfx/reviews/webfx-review-7445181 returned 403 -->\n<!-- Fix: https://www.g2.com/products/webfx/reviews/webfx-review-7804752 returned 403 -->\n<!-- Fix: https://www.g2.com/products/webfx/reviews/webfx-review-7467300 returned 403 -->"
+    },
+    {
+      "check_id": "tech_redirects",
+      "check_name": "Redirect Chains",
+      "category": "Technical SEO",
+      "severity": "medium",
+      "where_value": "Found 5 redirects",
+      "why_impact": "Multiple consecutive redirects add connection latency (TTFB) and dilute link equity (SEO authority). Direct links keep connections fast and pass maximum page authority.",
+      "how_to_fix": "Minimize redirects. Each redirect adds latency. Direct links are better than chains.",
+      "fix_code": null
+    },
+    {
+      "check_id": "tech_breadcrumbs",
+      "check_name": "Breadcrumbs",
+      "category": "Technical SEO",
+      "severity": "medium",
+      "where_value": "HTML breadcrumbs: False, Schema breadcrumbs: False",
+      "why_impact": "Breadcrumbs provide a structural navigation trail for users and search engines, showing the user's location in your site hierarchy and enhancing Google mobile search snippet displays.",
+      "how_to_fix": "Add breadcrumb navigation. It helps users and Google understand site structure. Add BreadcrumbList schema for rich snippets.",
+      "fix_code": null
+    },
+    {
+      "check_id": "performance_cache_headers",
+      "check_name": "Cache Headers",
+      "category": "Performance",
+      "severity": "medium",
+      "where_value": "Cache headers present: cache-control",
+      "why_impact": "Leveraging browser caching stores static assets locally on user devices, eliminating redundant network calls and making repeat visits feel instantaneous.",
+      "how_to_fix": "Add cache-control headers and ETags to improve repeat visits.",
+      "fix_code": "<IfModule mod_expires.c>\n  ExpiresActive On\n  ExpiresByType image/jpg \"access 1 year\"\n  ExpiresByType image/jpeg \"access 1 year\"\n  ExpiresByType image/gif \"access 1 year\"\n  ExpiresByType image/png \"access 1 year\"\n  ExpiresByType text/css \"access 1 month\"\n  ExpiresByType text/html \"access 1 month\"\n  ExpiresByType application/pdf \"access 1 month\"\n  ExpiresByType text/x-javascript \"access 1 month\"\n  ExpiresByType application/x-shockwave-flash \"access 1 month\"\n  ExpiresByType image/x-icon \"access 1 year\"\n  ExpiresDefault \"access 1 month\"\n<\/IfModule>\n<IfModule mod_headers.c>\n  Header unset ETag\n  FileETag None\n<\/IfModule>"
+    },
+    {
+      "check_id": "local_seo_nap_extraction",
+      "check_name": "NAP Extraction",
+      "category": "Local SEO",
+      "severity": "critical",
+      "where_value": "Name: #1 SEO Company | SEO.com - The Authority for All Things SEO, Phone: None, Address: not found",
+      "why_impact": "Name, Address, and Phone (NAP) details establish localized search authority. Search engines crawl this data to confirm your physical business location for local pack matches.",
+      "how_to_fix": "Ensure your business Name, Address, and Phone are clearly visible on the page.",
+      "fix_code": null
+    },
+    {
+      "check_id": "local_seo_localbusiness_schema",
+      "check_name": "LocalBusiness Schema",
+      "category": "Local SEO",
+      "severity": "critical",
+      "where_value": "LocalBusiness schema: 0/5 required fields present",
+      "why_impact": "LocalBusiness schema structures business listings directly for indexers. It links business names, geo-coordinates, reviews, and hours, driving business visibility in local packs.",
+      "how_to_fix": "Add complete LocalBusiness schema with all required fields.",
+      "fix_code": "<script type=\"application/ld+json\">{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"LocalBusiness\",\n  \"name\": \"Your Business Name\",\n  \"address\": {\n    \"@type\": \"PostalAddress\",\n    \"streetAddress\": \"123 Main St\",\n    \"addressLocality\": \"City\",\n    \"addressRegion\": \"ST\",\n    \"postalCode\": \"12345\"\n  },\n  \"telephone\": \"+123****7890\",\n  \"geo\": {\n    \"@type\": \"GeoCoordinates\",\n    \"latitude\": \"40.7128\",\n    \"longitude\": \"-74.0060\"\n  },\n  \"openingHoursSpecification\": [\n    {\n      \"@type\": \"OpeningHoursSpecification\",\n      \"dayOfWeek\": [\"Monday\", \"Tuesday\", \"Wednesday\", \"Thursday\", \"Friday\"],\n      \"opens\": \"09:00\",\n      \"closes\": \"17:00\"\n    }\n  ]\n}<\/script>"
+    },
+    {
+      "check_id": "local_seo_maps_embed",
+      "check_name": "Google Maps Embed",
+      "category": "Local SEO",
+      "severity": "high",
+      "where_value": "No Google Maps embed found",
+      "why_impact": "A Google Map embed confirms physical location relevance, makes navigation easy for local customers, and increases localized authority.",
+      "how_to_fix": "Embed a Google Map on your contact page to improve local SEO.",
+      "fix_code": "<iframe src=\"https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.21537462995!2d-74.00597278459418!3d40.71277567933012!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25a27e2f2b5e9%3A0x4d7f95e9d7f95e9d!2sYour%20Business%20Name!5e0!3m2!1sen!2sus!4v1234567890123\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"><\/iframe>"
+    },
+    {
+      "check_id": "local_seo_service_area",
+      "check_name": "Service Area",
+      "category": "Local SEO",
+      "severity": "high",
+      "where_value": "No service areas found",
+      "why_impact": "Declaring service areas (cities, counties, regions) clarifies business coverage to local searchers, helping match your site with searches in target cities.",
+      "how_to_fix": "Include service area information in your page content.",
+      "fix_code": null
+    },
+    {
+      "check_id": "local_seo_city_targeting",
+      "check_name": "City Targeting",
+      "category": "Local SEO",
+      "severity": "high",
+      "where_value": "No city name found in page content",
+      "why_impact": "Targeting specific city keywords in titles, headings, and descriptions ensures relevance for geo-modified searches (e.g., 'plumber in Dallas').",
+      "how_to_fix": "Include city name in your page content.",
+      "fix_code": null
+    },
+    {
+      "check_id": "local_seo_review_schema",
+      "check_name": "Review Schema",
+      "category": "Local SEO",
+      "severity": "medium",
+      "where_value": "No review schema found",
+      "why_impact": "Review structured data (AggregateRating) displays star ratings in search results, increasing click-through rates (CTR) and establishing instant digital trust.",
+      "how_to_fix": "Add AggregateRating schema markup to your page.",
+      "fix_code": "<script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"LocalBusiness\",\"name\":\"Your Business\",\"aggregateRating\":{\"@type\":\"AggregateRating\",\"ratingValue\":\"4.5\",\"reviewCount\":\"100\"}}<\/script>"
+    },
+    {
+      "check_id": "local_seo_gbp_link",
+      "check_name": "Google Business Profile Link",
+      "category": "Local SEO",
+      "severity": "medium",
+      "where_value": "No Google Business Profile link found",
+      "why_impact": "Linking directly to your Google Business Profile page synchronizes on-page local listings with Google Maps data, reinforcing geographic relevance.",
+      "how_to_fix": "Add a link to your Google Business Profile on your contact page.",
+      "fix_code": null
+    },
+    {
+      "check_id": "local_seo_nap_consistency",
+      "check_name": "NAP Consistency",
+      "category": "Local SEO",
+      "severity": "critical",
+      "where_value": "NAP mismatch detected across pages (name differs)",
+      "why_impact": "Mismatched NAP details across web pages raise trust issues for search algorithms. Identical NAP details confirm listing authenticity, boosting local pack prominence.",
+      "how_to_fix": "Ensure NAP is identical across all pages. Use a consistent format.",
+      "fix_code": null
+    },
+    {
+      "check_id": "content_keyword_density",
+      "check_name": "Keyword Density",
+      "category": "Content Quality",
+      "severity": "medium",
+      "where_value": "Keyword stuffing detected. Top words: seo (104), search (19), traffic (14), results (13), marketing (13)",
+      "why_impact": "Over-optimization or keyword stuffing leads to search engine penalties. Keeping target keyword density between 1-3% ensures natural reading and search relevance.",
+      "how_to_fix": "Reduce keyword repetition and focus on natural, valuable content.",
+      "fix_code": null
+    },
+    {
+      "check_id": "content_readability",
+      "check_name": "Content Readability",
+      "category": "Content Quality",
+      "severity": "medium",
+      "where_value": "Flesch score: 25.4 (Difficult to read)",
+      "why_impact": "Plain, clear reading text improves accessibility, increases time-on-site, and satisfies screen readers and voice searchers.",
+      "how_to_fix": "Improve readability by using shorter sentences and simpler words.",
+      "fix_code": null
+    },
+    {
+      "check_id": "content_faq",
+      "check_name": "FAQ Section",
+      "category": "Content Quality",
+      "severity": "medium",
+      "where_value": "No FAQ section found",
+      "why_impact": "FAQ sections answer customer queries, keep users on your page longer, and capture high-value organic search real estate like 'People Also Ask' rich snippets.",
+      "how_to_fix": "Consider adding an FAQ section to address common user questions and improve SEO.",
+      "fix_code": "<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"FAQPage\",\n  \"mainEntity\": [{\n    \"@type\": \"Question\",\n    \"name\": \"Example Question 1\",\n    \"acceptedAnswer\": {\n      \"@type\": \"Answer\",\n      \"text\": \"Example answer text here.\"\n    }\n  },{\n    \"@type\": \"Question\",\n    \"name\": \"Example Question 2\",\n    \"acceptedAnswer\": {\n      \"@type\": \"Answer\",\n      \"text\": \"Example answer text here.\"\n    }\n  }]\n}\n<\/script>"
+    },
+    {
+      "check_id": "security_headers",
+      "check_name": "Security Headers",
+      "category": "Security",
+      "severity": "high",
+      "where_value": "Found 1 security headers: x-content-type-options. Missing: content-security-policy, strict-transport-security, x-frame-options, referrer-policy",
+      "why_impact": "Defensive HTTP headers (CSP, HSTS, X-Frame) protect your website against client-side scripting attacks, cross-site scripting (XSS), clickjacking, and mime-sniffing exploits.",
+      "how_to_fix": "Add missing security headers to protect against common web vulnerabilities",
+      "fix_code": "Header always set X-Frame-Options \"SAMEORIGIN\"\nHeader always set X-Content-Type-Options \"nosniff\"\nHeader always set Strict-Transport-Security \"max-age=31536000\"\nHeader always set Referrer-Policy \"strict-origin-when-cross-origin"
+    },
+    {
+      "check_id": "alt_text",
+      "check_name": "Image Alt Text",
+      "category": "Accessibility",
+      "severity": "high",
+      "where_value": "43 of 61 images have alt text",
+      "why_impact": "",
+      "how_to_fix": "Add descriptive alt text to all images",
+      "fix_code": null
+    },
+    {
+      "check_id": "form_labels",
+      "check_name": "Form Labels",
+      "category": "Accessibility",
+      "severity": "medium",
+      "where_value": "7 of 15 inputs have labels",
+      "why_impact": "",
+      "how_to_fix": "Add labels to all form inputs using <label> or aria-label",
+      "fix_code": null
+    },
+    {
+      "check_id": "heading_order",
+      "check_name": "Heading Order",
+      "category": "Accessibility",
+      "severity": "medium",
+      "where_value": "Skipped from h1 to h5",
+      "why_impact": "",
+      "how_to_fix": "Maintain proper heading hierarchy without skipping levels",
+      "fix_code": null
+    },
+    {
+      "check_id": "aria_labels",
+      "check_name": "ARIA Labels",
+      "category": "Accessibility",
+      "severity": "low",
+      "where_value": "6 interactive elements missing aria-label",
+      "why_impact": "",
+      "how_to_fix": "Add aria-label to interactive elements with roles",
+      "fix_code": null
+    },
+    {
+      "check_id": "skip_nav",
+      "check_name": "Skip Navigation",
+      "category": "Accessibility",
+      "severity": "low",
+      "where_value": "No skip navigation link found",
+      "why_impact": "",
+      "how_to_fix": "Add a skip navigation link for keyboard users",
+      "fix_code": null
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "https://seo.com": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8",
+      "cache-control": "max-age=3600",
+      "content-encoding": "gzip",
+      "server": "nginx",
+      "x-content-type-options": "nosniff"
+    },
+    "file": "homepage.html",
+    "final_url": "https://www.seo.com/"
+  },
+  "https://seo.com/services/": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8",
+      "cache-control": "max-age=3600",
+      "content-encoding": "gzip"
+    },
+    "file": "services.html",
+    "final_url": "https://seo.com/services/"
+  },
+  "https://seo.com/ai/services/": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8",
+      "cache-control": "max-age=3600",
+      "content-encoding": "gzip"
+    },
+    "file": "ai_services.html",
+    "final_url": "https://seo.com/ai/services/"
+  },
+  "https://seo.com/services/ppc-management/": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8",
+      "cache-control": "max-age=3600",
+      "content-encoding": "gzip"
+    },
+    "file": "ppc_management.html",
+    "final_url": "https://seo.com/services/ppc-management/"
+  },
+  "https://seo.com/contact/": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8",
+      "cache-control": "max-age=3600",
+      "content-encoding": "gzip"
+    },
+    "file": "contact.html",
+    "final_url": "https://seo.com/contact/"
+  },
+  "https://seo.com/robots.txt": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "file": "robots.txt"
+  },
+  "https://seo.com/sitemap.xml": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "file": "sitemap.xml"
+  },
+  "https://www.g2.com/products/webfx/reviews/webfx-review-7445181": {
+    "status_code": 403,
+    "headers": {},
+    "file": "g2_403.html"
+  },
+  "https://www.g2.com/products/webfx/reviews/webfx-review-7804752": {
+    "status_code": 403,
+    "headers": {},
+    "file": "g2_403.html"
+  },
+  "https://www.g2.com/products/webfx/reviews/webfx-review-7467300": {
+    "status_code": 403,
+    "headers": {},
+    "file": "g2_403.html"
+  }
+}
