@@ -30,8 +30,13 @@ def main():
         passed = sum(1 for r in results if r.passed)
         print(f"  {checker.category_name}: {passed}/{len(results)} passed")
 
-    score_data = compute_score(all_results)
+    score_data = compute_score(all_results, crawl_result)
     print(f"  Score: {score_data['overall_score']}/100 (Grade {score_data['grade']})")
+    print(f"    Health Score: {score_data.get('health_score', 0.0)}")
+    print(f"    Coverage Score: {score_data.get('coverage_score', 0.0)}")
+    print(f"    Confidence Score: {score_data.get('confidence_score', 0.0)}")
+    print(f"    Opportunity Score: {score_data.get('opportunity_score', 0.0)}")
+
 
     # Print crawl audit coverage metadata
     print("\n  Audit Coverage Metadata:")
