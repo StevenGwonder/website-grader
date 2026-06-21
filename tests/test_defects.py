@@ -51,7 +51,7 @@ def test_defect_single_hop_redirect_chain():
         url="https://example.com", html="", final_url="https://www.example.com/", status_code=200, ttfb_ms=100, headers={}
     )
     checker = TechnicalChecks()
-    result = checker._check_redirect_chains(crawl)
+    result = checker._check_tech_redirects(crawl)
     # Correct expected behavior: single redirects are not chains, should pass
     assert result.passed
 

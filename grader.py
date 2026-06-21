@@ -48,14 +48,11 @@ def main():
 
     fixes = generate_fixes(crawl_result, all_results)
 
-    try:
-        from report import generate_report
-        html = generate_report(crawl_result, all_results, score_data, fixes, args.url)
-        with open(args.output, "w") as f:
-            f.write(html)
-        print(f"  Report: {args.output}")
-    except ImportError:
-        print("  (report.py not yet available — skipping HTML report)")
+    from report import generate_report
+    html = generate_report(crawl_result, all_results, score_data, fixes, args.url)
+    with open(args.output, "w") as f:
+        f.write(html)
+    print(f"  Report: {args.output}")
 
     if args.json:
         report_data = {
