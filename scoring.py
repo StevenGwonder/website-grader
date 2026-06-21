@@ -75,3 +75,41 @@ def score_to_grade(score: float) -> str:
     if score >= 60:
         return "D"
     return "F"
+
+def deduplicate_findings(findings: list) -> list:
+    from models import FindingStatus
+    grouped = {}
+    for f in findings:
+        if f.status in (FindingStatus.PASS, FindingStatus.INFORMATIONAL, FindingStatus.NOT_APPLICABLE):
+            key = (f.check_id, id(f))
+        else:
+            selector = None
+            if f.evidence:
+                selector = f.evidence[0].selector
+            key = (f.check_id, f.observation, selector)
+            
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(f)
+        
+    deduplicated = []
+    for key, items in grouped.items():
+        if len(items) == 1:
+            deduplicated.append(items[0])
+        else:
+            base = items[0]
+            combined_evidence = []
+            seen_evidence = set()
+            for item in items:
+                for ev in item.evidence:
+                    ev_key = (ev.page_url, ev.selector, str(ev.observed_value))
+                    if ev_key not in seen_evidence:
+                        seen_evidence.add(ev_key)
+                        combined_evidence.append(ev)
+            base.evidence = combined_evidence
+            base.scope = "site"
+            base.observation = f"{base.observation} (Found on {len(items)} pages)"
+            deduplicated.append(base)
+            
+    return deduplicated
+
