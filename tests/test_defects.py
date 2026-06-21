@@ -15,7 +15,6 @@ def make_crawl_result(html, url="https://example.com"):
     return result
 
 # 1. Sitemap index or invalid sitemap endpoint reported as "0 URLs"
-@pytest.mark.xfail(reason="ponytail: sitemap parser does not handle index files or warn on invalid structures, flags 0 URLs")
 def test_defect_sitemap_index_classification():
     sitemap_index_xml = """<?xml version="1.0" encoding="UTF-8"?>
     <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -33,7 +32,6 @@ def test_defect_sitemap_index_classification():
     assert "index" in result.detail.lower()
 
 # 2. External 403 Forbidden classified as a broken link instead of access-restricted or unverified
-@pytest.mark.xfail(reason="ponytail: external 403s are flagged as broken instead of access-restricted or unverified")
 @patch("checks.technical.req.head")
 def test_defect_external_403_classification(mock_head):
     mock_head.return_value = MagicMock(status_code=403)
@@ -46,7 +44,6 @@ def test_defect_external_403_classification(mock_head):
     assert len(result.data.get("broken_links", [])) == 0
 
 # 3. A single-hop redirect classified as a redirect chain
-@pytest.mark.xfail(reason="ponytail: single-hop redirects are labeled as chains")
 def test_defect_single_hop_redirect_chain():
     crawl = CrawlResult(base_url="https://example.com")
     # Simulate single-hop redirects (e.g. HTTP to HTTPS or trailing slash)

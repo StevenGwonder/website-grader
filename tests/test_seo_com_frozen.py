@@ -26,7 +26,8 @@ def test_frozen_seo_com_audit():
         assert crawl_result.robots_txt is not None
         assert "sitemap.xml" in crawl_result.robots_txt
         # The legacy parser reports 0 URLs due to the namespace parsing bug.
-        assert len(crawl_result.sitemap_urls) == 0
+        # Now that the namespace parser bug is fixed in Phase 2, it parses the URLs.
+        assert len(crawl_result.sitemap_urls) == 5
         
         # 2. Run all diagnostic categories
         all_results = []
@@ -48,13 +49,13 @@ def test_frozen_seo_com_audit():
                 if r.check_id == "content_uniqueness":
                     print("UNIQUENESS DATA:", r.data)
         
-        # The baseline score of seo.com under the legacy audit engine is 53
-        assert score_data["overall_score"] == 53
+        # The baseline score of seo.com under the legacy audit engine is 53, but with sitemap and 403 external link fixes, it rises to 55.
+        assert score_data["overall_score"] == 55
         assert score_data["grade"] == "F"
         
         # Verify specific category scores match the legacy audit report
         categories = score_data["categories"]
-        assert categories["Technical SEO"]["score"] == 62
+        assert categories["Technical SEO"]["score"] == 71
         assert categories["Local SEO"]["score"] == 0
         assert categories["Performance"]["score"] == 82
         assert categories["Content Quality"]["score"] == 65

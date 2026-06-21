@@ -9,6 +9,25 @@ from bs4 import BeautifulSoup
 
 from .base import CheckResult, Severity, CheckCategory
 
+def classify_link_outcome(status_code, error_str) -> str:
+    if error_str:
+        err = error_str.lower()
+        if "timeout" in err or "timed out" in err or "timedout" in err or "deadline" in err:
+            return "timeout"
+        if "dns" in err or "name resolution" in err or "resolve" in err or "not known" in err:
+            return "dns_error"
+        if "ssl" in err or "tls" in err or "cert" in err or "handshake" in err:
+            return "tls_failure"
+        return "unverified_destination"
+    if status_code is not None:
+        if status_code == 403:
+            return "access_restricted"
+        if status_code == 429:
+            return "rate_limited"
+        if status_code >= 400:
+            return "broken"
+        return "valid"
+    return "unverified_destination"
 
 class TechnicalChecks(CheckCategory):
     category_name = "Technical SEO"
@@ -37,6 +56,22 @@ class TechnicalChecks(CheckCategory):
         results.append(self._check_url_structure(crawl_result))
         results.append(self._check_pagination(homepage))
         results.append(self._check_breadcrumbs(homepage))
+
+        # Inject raw-vs-rendered disparities into the relevant CheckResults
+        disparities = getattr(homepage, "raw_vs_rendered_disparities", {})
+        if disparities:
+            for r in results:
+                if r.check_id == "tech_meta_title" and "title" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["title"]
+                elif r.check_id == "tech_canonical" and "canonical" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["canonical"]
+                elif r.check_id == "tech_robots_meta" and "robots" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["robots"]
+                elif r.check_id == "tech_headings" and "headings" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["headings"]
+                elif r.check_id == "tech_schema" and "structured_data" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["structured_data"]
+
         return results
 
     def _check_meta_title(self, page):
@@ -287,7 +322,23 @@ class TechnicalChecks(CheckCategory):
     def _check_sitemap(self, crawl_result):
         has_sitemap = bool(crawl_result.sitemap_xml)
         url_count = len(crawl_result.sitemap_urls)
-        passed = has_sitemap and url_count > 0
+        
+        # Detect if it's a sitemap index file
+        is_index = False
+        if has_sitemap and ("<sitemapindex" in crawl_result.sitemap_xml.lower()):
+            is_index = True
+
+        passed = has_sitemap and (url_count > 0 or is_index)
+        
+        detail = ""
+        if has_sitemap:
+            if is_index:
+                detail = f"Sitemap index found with {url_count} parsed child URLs"
+            else:
+                detail = f"Sitemap found with {url_count} URLs"
+        else:
+            detail = "No sitemap.xml found"
+
         return CheckResult(
             check_id="tech_sitemap",
             check_name="XML Sitemap",
@@ -295,7 +346,7 @@ class TechnicalChecks(CheckCategory):
             severity=Severity.HIGH,
             passed=passed,
             score=100 if passed else 0,
-            detail=f"Sitemap found with {url_count} URLs" if has_sitemap else "No sitemap.xml found",
+            detail=detail,
             recommendation="Create an XML sitemap at /sitemap.xml listing all your pages. Submit it in Google Search Console." if not passed else "",
             fix_code="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url><loc>https://yourdomain.com/</loc></url>\n</urlset>",
             fix_difficulty="Easy (10 min)",
@@ -338,14 +389,26 @@ class TechnicalChecks(CheckCategory):
                     all_links.add(full_url)
 
         broken = []
-        headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+        external_outcomes = {}
         for link in all_links:
+            is_internal = urlparse(link).netloc == crawl_result.base_domain
+            status = None
+            error_str = None
             try:
                 resp = req.head(link, timeout=5, allow_redirects=True, impersonate="chrome")
-                if resp.status_code >= 400:
-                    broken.append({"url": link, "status": resp.status_code})
-            except Exception:
-                broken.append({"url": link, "status": "error"})
+                status = resp.status_code
+            except Exception as e:
+                error_str = str(e)
+                
+            classification = classify_link_outcome(status, error_str)
+            
+            if not is_internal:
+                external_outcomes[link] = classification
+                if classification == "broken":
+                    broken.append({"url": link, "status": status or "error"})
+            else:
+                if classification == "broken" or status is None:
+                    broken.append({"url": link, "status": status or "error"})
 
         passed = len(broken) == 0
         return CheckResult(
@@ -360,16 +423,27 @@ class TechnicalChecks(CheckCategory):
             fix_code="\n".join([f"<!-- Fix: {b['url']} returned {b['status']} -->" for b in broken[:5]]),
             fix_difficulty="Medium (varies)",
             impact_estimate="Critical — broken links hurt user experience and crawl budget",
-            data={"total_links": len(all_links), "broken_links": broken},
+            data={
+                "total_links": len(all_links),
+                "broken_links": broken,
+                "external_link_outcomes": external_outcomes
+            },
         )
 
     def _check_redirect_chains(self, crawl_result):
         chains = []
         for url, page in crawl_result.pages.items():
-            # PageData doesn't store redirect history; check final_url vs url
-            if page.final_url and page.final_url != url:
-                chains.append({"from": url, "to": page.final_url})
-        passed = len(chains) <= 1  # Homepage redirect to www or https is fine
+            hops = getattr(page, "redirect_hops", [])
+            redirect_type = getattr(page, "redirect_type", None)
+            is_chain = (redirect_type in ("redirect_chain", "loop")) or (len(hops) > 2)
+            if is_chain:
+                chains.append({
+                    "from": url,
+                    "to": page.final_url,
+                    "hops": hops,
+                    "type": redirect_type or "redirect_chain"
+                })
+        passed = len(chains) == 0
         return CheckResult(
             check_id="tech_redirects",
             check_name="Redirect Chains",
@@ -377,7 +451,7 @@ class TechnicalChecks(CheckCategory):
             severity=Severity.MEDIUM,
             passed=passed,
             score=100 if passed else 50,
-            detail=f"Found {len(chains)} redirects" if chains else "No redirect chains detected",
+            detail=f"Found {len(chains)} redirect chains/loops" if chains else "No redirect chains detected",
             recommendation="Minimize redirects. Each redirect adds latency. Direct links are better than chains." if not passed else "",
             fix_difficulty="Medium",
             impact_estimate="Medium — redirect chains add latency and dilute link equity",
