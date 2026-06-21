@@ -306,6 +306,10 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
             "pages_crawled": list(crawl_result.pages.keys()),
             "overall_score": score,
             "overall_grade": grade,
+            "health_score": score_data.get("health_score", float(score)),
+            "coverage_score": score_data.get("coverage_score", 100.0),
+            "confidence_score": score_data.get("confidence_score", 100.0),
+            "opportunity_score": score_data.get("opportunity_score", 0.0),
             "checks_summary": {
                 "total": total_count,
                 "passed": passed_count,

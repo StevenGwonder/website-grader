@@ -132,6 +132,13 @@ class CheckCategory:
     category_weight: int = 0
 
     def __init__(self):
+        # Wrap run to store crawl_result on self
+        orig_run = self.run
+        def wrapped_run(crawl_result, *args, **kwargs):
+            self.crawl_result = crawl_result
+            return orig_run(crawl_result, *args, **kwargs)
+        self.run = wrapped_run
+
         # Dynamically wrap all _check_ methods to run safely
         for attr_name in dir(self):
             if attr_name.startswith("_check_") and callable(getattr(self, attr_name)):
@@ -140,7 +147,10 @@ class CheckCategory:
 
     def _wrap_method(self, name, method):
         def wrapped(*args, **kwargs):
-            from checks.registry import RULE_REGISTRY
+            from checks.registry import RULE_REGISTRY, get_rule_metadata
+            from checks.base import Severity, CheckResult
+            from models import FindingStatus
+            
             check_id = name[7:]
             matched_id = None
             for cid in RULE_REGISTRY:
@@ -155,14 +165,142 @@ class CheckCategory:
                 elif check_id == "redirect_chains": matched_id = "tech_redirects"
                 elif check_id == "content_uniqueness": matched_id = "content_uniqueness"
                 else: matched_id = check_id
+
+            crawl_result = getattr(self, "crawl_result", None)
+            page_data = None
             
+            for arg in args:
+                if arg.__class__.__name__ == "PageData":
+                    page_data = arg
+                elif arg.__class__.__name__ == "CrawlResult":
+                    crawl_result = arg
+            for k, v in kwargs.items():
+                if v.__class__.__name__ == "PageData":
+                    page_data = v
+                elif v.__class__.__name__ == "CrawlResult":
+                    crawl_result = v
+
+            from classifiers import classify_site_type, classify_page_type, classify_location_model
+
+            site_type = "other"
+            location_model = None
+            if crawl_result:
+                if not hasattr(crawl_result, "site_type") or not crawl_result.site_type:
+                    crawl_result.site_type = classify_site_type(crawl_result)
+                site_type = crawl_result.site_type
+                
+                if not hasattr(crawl_result, "location_model") or not crawl_result.location_model:
+                    crawl_result.location_model = classify_location_model(site_type, crawl_result)
+                location_model = crawl_result.location_model
+            else:
+                site_type = "other"
+
+            page_type = "*"
+            depth = 1
+            if page_data:
+                if not hasattr(page_data, "page_type") or not page_data.page_type:
+                    overrides = getattr(crawl_result, "overrides", {}) if crawl_result else {}
+                    page_overrides = overrides.get("page_types", {}) if overrides else {}
+                    page_data.page_type = classify_page_type(page_data.url, page_data.html, page_data.soup, page_overrides)
+                page_type = page_data.page_type
+                
+                if hasattr(page_data, "depth"):
+                    depth = page_data.depth
+                else:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(page_data.url)
+                    path = parsed.path.strip("/")
+                    depth = len(path.split("/")) if path else 0
+
+            meta = get_rule_metadata(matched_id)
+            if meta:
+                is_local_seo_check = (meta.category == "Local SEO")
+                is_national = (location_model == "national_no_local")
+                
+                site_app = meta.applicability.get("site_types", ["*"])
+                page_app = meta.applicability.get("page_types", ["*"])
+                
+                site_applicable = False
+                for t in site_app:
+                    if t == "*":
+                        site_applicable = True
+                    elif t == "local":
+                        if site_type in ("local_service_business", "local_storefront", "multi_location_business"):
+                            site_applicable = True
+                    elif t == site_type:
+                        site_applicable = True
+                        
+                page_applicable = False
+                for t in page_app:
+                    if t == "*":
+                        page_applicable = True
+                    elif t == page_type:
+                        page_applicable = True
+
+                applicable = site_applicable and page_applicable
+                if is_local_seo_check and is_national:
+                    applicable = False
+
+                if not applicable:
+                    return CheckResult(
+                        check_id=matched_id,
+                        check_name=meta.name,
+                        category=meta.category,
+                        severity=Severity(meta.default_severity),
+                        passed=True,
+                        score=100,
+                        detail="NOT_APPLICABLE",
+                        status=FindingStatus.NOT_APPLICABLE
+                    )
+
             try:
                 res = method(*args, **kwargs)
+                if isinstance(res, CheckResult):
+                    if meta:
+                        default_sev = res.severity if res.severity else Severity(meta.default_severity)
+                            
+                        adjusted_sev = default_sev
+                        if page_type in ("utility", "policy"):
+
+                            if matched_id == "tech_canonical":
+                                adjusted_sev = Severity.LOW
+                            else:
+                                if default_sev == Severity.CRITICAL:
+                                    adjusted_sev = Severity.MEDIUM
+                                elif default_sev == Severity.HIGH:
+                                    adjusted_sev = Severity.LOW
+                                elif default_sev == Severity.MEDIUM:
+                                    adjusted_sev = Severity.LOW
+                                else:
+                                    adjusted_sev = Severity.INFO
+                        elif page_type == "homepage":
+                            if matched_id == "tech_canonical":
+                                adjusted_sev = Severity.HIGH
+                        elif depth >= 3:
+                            if default_sev == Severity.CRITICAL:
+                                adjusted_sev = Severity.HIGH
+                            elif default_sev == Severity.HIGH:
+                                adjusted_sev = Severity.MEDIUM
+                            elif default_sev == Severity.MEDIUM:
+                                adjusted_sev = Severity.LOW
+                            else:
+                                adjusted_sev = Severity.INFO
+                                
+                        res.severity = adjusted_sev
+                        if res.passed:
+                            if res.severity == Severity.INFO:
+                                res.status = FindingStatus.INFORMATIONAL
+                            else:
+                                res.status = FindingStatus.PASS
+                        else:
+                            if res.severity == Severity.INFO:
+                                res.status = FindingStatus.INFORMATIONAL
+                            elif 0 < res.score < 100:
+                                res.status = FindingStatus.WARNING
+                            else:
+                                res.status = FindingStatus.FAIL
                 return res
             except Exception as e:
-                from checks.base import Severity, CheckResult
-                from checks.registry import get_rule_metadata
-                from models import FindingStatus
                 meta = get_rule_metadata(matched_id)
                 return CheckResult(
                     check_id=matched_id,
@@ -196,6 +334,7 @@ class CheckCategory:
                 detail=f"Error executing check {check_id}: {e}",
                 status=FindingStatus.ERROR
             )
+
 
 
 
