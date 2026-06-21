@@ -116,10 +116,10 @@ class ContentChecks(CheckCategory):
         )
 
     def _check_readability(self, page):
-        text = page.soup.get_text(strip=True)
-        sentences = re.findall(r'[.!?]+', text)
+        text = ' '.join(t.get_text(strip=True) for t in page.soup.find_all(['p','h1','h2','h3','h4','li','td','blockquote']))
+        sentences = [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
         words = re.findall(r'\b\w+\b', text)
-        num_sentences = len(sentences)
+        num_sentences = sum(1 for s in sentences if len(s.split()) >= 3)
         num_words = len(words)
 
         if num_sentences == 0 or num_words == 0:
@@ -132,10 +132,23 @@ class ContentChecks(CheckCategory):
                 recommendation="Add well-structured, readable content to your page.",
             )
 
-        syllables = 0
-        for word in words:
-            syllables += len(re.findall(r'[aeiouAEIOU]+', word))
+        def count_syllables(word):
+            word = word.lower()
+            vowels = 'aeiouy'
+            count = 0
+            prev_vowel = False
+            for ch in word:
+                is_v = ch in vowels
+                if is_v and not prev_vowel:
+                    count += 1
+                prev_vowel = is_v
+            if word.endswith('e') and count > 1:
+                count -= 1
+            if word.endswith('le') and len(word) > 2 and word[-3] not in vowels:
+                count += 1
+            return max(1, count)
 
+        syllables = sum(count_syllables(w) for w in words)
         score = 206.835 - 1.015 * (num_words / num_sentences) - 84.6 * (syllables / num_words)
 
         if score >= 60:
@@ -167,32 +180,56 @@ class ContentChecks(CheckCategory):
         """Check ALL crawled pages for FAQ sections, and check for /faq page in URL paths."""
         faq_found = False
         faq_location = ""
+        faq_via = ""
 
-        # Check if any crawled URL contains /faq
+        # 1. Check if any crawled URL contains /faq
         for url in crawl_result.pages.keys():
             if '/faq' in url.lower():
                 faq_found = True
                 faq_location = url
+                faq_via = "url"
                 break
 
-        # Check all pages for FAQ class/section
+        # 2-5. Check all pages for FAQ patterns
         if not faq_found:
+            accordion_re = re.compile('faq|accordion|toggle', re.I)
             for page in pages:
-                # Check for FAQ class
+                # FAQ class
                 if page.soup.find(class_=re.compile('faq', re.I)):
                     faq_found = True
                     faq_location = page.url
+                    faq_via = "class"
                     break
-                # Check for FAQ heading
-                for tag in page.soup.find_all(['h1', 'h2', 'h3']):
-                    if tag.get_text(strip=True).lower() in ('faq', 'frequently asked questions', 'f.a.q.'):
+                # Elementor accordion pattern
+                if page.soup.find(class_=accordion_re):
+                    faq_found = True
+                    faq_location = page.url
+                    faq_via = "accordion"
+                    break
+                # Native <details> elements
+                if page.soup.find('details'):
+                    faq_found = True
+                    faq_location = page.url
+                    faq_via = "accordion"
+                    break
+                # Q&A pattern: class containing "question" or "answer"
+                if page.soup.find(class_=re.compile('question|answer', re.I)):
+                    faq_found = True
+                    faq_location = page.url
+                    faq_via = "accordion"
+                    break
+                # Heading check: h2/h3/h4 with FAQ text
+                for tag in page.soup.find_all(['h2', 'h3', 'h4']):
+                    heading_text = tag.get_text(strip=True).lower()
+                    if heading_text in ('faq', 'frequently asked questions', 'f.a.q.'):
                         faq_found = True
                         faq_location = page.url
+                        faq_via = "accordion"
                         break
                 if faq_found:
                     break
 
-        # Check all pages for FAQPage schema
+        # 6. Check all pages for FAQPage schema
         if not faq_found:
             for page in pages:
                 for script in page.soup.find_all('script', type='application/ld+json'):
@@ -210,6 +247,7 @@ class ContentChecks(CheckCategory):
                             if isinstance(item, dict) and item.get('@type') == 'FAQPage':
                                 faq_found = True
                                 faq_location = page.url
+                                faq_via = "schema"
                                 break
                     except (json.JSONDecodeError, TypeError):
                         continue
@@ -218,11 +256,17 @@ class ContentChecks(CheckCategory):
 
         if faq_found:
             short_url = faq_location.replace("https://", "").replace("http://", "")[:50]
+            if faq_via == "url":
+                detail = f"FAQ page found at {short_url}"
+            elif faq_via == "accordion":
+                detail = f"FAQ section found (accordion pattern) on {short_url}"
+            else:
+                detail = f"FAQ section found on {short_url}"
             return CheckResult(
                 check_id="content_faq", check_name="FAQ Section",
                 category=self.category_name, severity=Severity.MEDIUM,
                 passed=True, score=100,
-                detail=f"FAQ section found on {short_url}",
+                detail=detail,
                 recommendation="Good practice. Keep FAQ section updated with relevant questions.",
             )
         return CheckResult(

@@ -164,10 +164,12 @@ class LocalSeoChecks(CheckCategory):
         )
 
     def _check_localbusiness_schema(self, pages) -> CheckResult:
-        schema_fix = '<script type="application/ld+json">{\n  "@context": "https://schema.org",\n  "@type": "LocalBusiness",\n  "name": "Your Business Name",\n  "address": {\n    "@type": "PostalAddress",\n    "streetAddress": "123 Main St",\n    "addressLocality": "City",\n    "addressRegion": "ST",\n    "postalCode": "12345"\n  },\n  "telephone": "+1234567890",\n  "geo": {\n    "@type": "GeoCoordinates",\n    "latitude": "40.7128",\n    "longitude": "-74.0060"\n  },\n  "openingHoursSpecification": [\n    {\n      "@type": "OpeningHoursSpecification",\n      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],\n      "opens": "09:00",\n      "closes": "17:00"\n    }\n  ]\n}</script>'
+        schema_fix = '<script type="application/ld+json">{\n  "@context": "https://schema.org",\n  "@type": "LocalBusiness",\n  "name": "Your Business Name",\n  "address": {\n    "@type": "PostalAddress",\n    "streetAddress": "123 Main St",\n    "addressLocality": "City",\n    "addressRegion": "ST",\n    "postalCode": "12345"\n  },\n  "telephone": "+123****7890",\n  "geo": {\n    "@type": "GeoCoordinates",\n    "latitude": "40.7128",\n    "longitude": "-74.0060"\n  },\n  "openingHoursSpecification": [\n    {\n      "@type": "OpeningHoursSpecification",\n      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],\n      "opens": "09:00",\n      "closes": "17:00"\n    }\n  ]\n}</script>'
         required_fields = ["name", "address", "telephone", "geo", "openingHoursSpecification"]
         found_fields = 0
         found_on_page = ""
+        found_localbusiness = False
+        found_organization = False
 
         for page in pages:
             scripts = page.soup.find_all('script', type='application/ld+json')
@@ -175,7 +177,6 @@ class LocalSeoChecks(CheckCategory):
                 try:
                     raw = script.string or script.get_text() or "{}"
                     ld_json = json.loads(raw)
-                    # Handle @graph arrays
                     items = []
                     if isinstance(ld_json, dict):
                         if '@graph' in ld_json:
@@ -188,23 +189,38 @@ class LocalSeoChecks(CheckCategory):
                     for item in items:
                         if isinstance(item, dict):
                             t = str(item.get('@type', ''))
-                            if 'LocalBusiness' in t or 'Organization' in t:
+                            if 'LocalBusiness' in t:
+                                found_localbusiness = True
                                 for field in required_fields:
                                     if field in item:
                                         found_fields += 1
                                 found_on_page = page.url.split("/")[-2] or "homepage"
                                 break
-                    if found_fields > 0:
+                            elif 'Organization' in t:
+                                found_organization = True
+                    if found_localbusiness:
                         break
                 except (json.JSONDecodeError, TypeError):
                     continue
-            if found_fields > 0:
+            if found_localbusiness:
                 break
 
-        score = int((found_fields / 5) * 100)
-        passed = score >= 60
-        detail = f"LocalBusiness schema: {found_fields}/5 required fields present" + (f" (found on {found_on_page})" if found_on_page else "")
-        recommendation = "Add complete LocalBusiness schema with all required fields."
+        if found_localbusiness:
+            score = int((found_fields / 5) * 100)
+            passed = score >= 60
+            detail = f"LocalBusiness schema: {found_fields}/5 required fields present" + (f" (found on {found_on_page})" if found_on_page else "")
+            recommendation = "Add complete LocalBusiness schema with all required fields."
+        elif found_organization:
+            score = 20
+            passed = False
+            detail = "Organization schema found but LocalBusiness schema missing. Organization is valid but LocalBusiness enables local search features."
+            recommendation = "Replace Organization schema with LocalBusiness schema to enable local search features."
+        else:
+            score = 0
+            passed = False
+            detail = "No LocalBusiness or Organization schema found"
+            recommendation = "Add LocalBusiness schema markup to your page."
+
         return CheckResult(
             check_id="local_seo_localbusiness_schema",
             check_name="LocalBusiness Schema",
@@ -286,10 +302,7 @@ class LocalSeoChecks(CheckCategory):
 
     def _check_city_targeting(self, pages) -> CheckResult:
         """Scan ALL crawled pages for city targeting — support multi-word city names."""
-        # First, try to detect city name from page content (look for "City, ST" patterns)
-        all_text = ""
-        for page in pages:
-            all_text += page.soup.get_text() + "\n"
+        all_text = '\n'.join(page.soup.get_text() for page in pages)
 
         # Look for multi-word city names followed by state abbrev
         city_state_match = re.search(r'([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)\s*,?\s+(?:CA|TX|NY|FL|WA|OR|AZ|NV|CO)\b', all_text)
@@ -304,7 +317,7 @@ class LocalSeoChecks(CheckCategory):
                 recommendation="Include city name in your page content."
             )
 
-        # Check if the full city name (e.g. "San Marcos") appears in title, h1, or meta description
+        # Check if the full city name appears in title, h1, or meta description
         found_in = []
         for page in pages:
             title = page.soup.title.string if page.soup.title else ""
@@ -319,15 +332,34 @@ class LocalSeoChecks(CheckCategory):
             if city.lower() in meta_text.lower() and "meta description" not in found_in:
                 found_in.append("meta description")
 
-        passed = len(found_in) > 0
-        detail = f"City '{city}' found in: {', '.join(found_in)}" if found_in else f"City '{city}' not found in title, h1, or meta description"
+        if found_in:
+            return CheckResult(
+                check_id="local_seo_city_targeting", check_name="City Targeting",
+                category=self.category_name, severity=Severity.HIGH,
+                passed=True, score=100,
+                detail=f"City '{city}' found in: {', '.join(found_in)}",
+                recommendation="",
+                data={"city": city, "found_in": found_in}
+            )
+
+        # Check if city appears anywhere in combined page content
+        if city.lower() in all_text.lower():
+            return CheckResult(
+                check_id="local_seo_city_targeting", check_name="City Targeting",
+                category=self.category_name, severity=Severity.HIGH,
+                passed=False, score=50,
+                detail=f"City '{city}' found in page content but not in title, h1, or meta description",
+                recommendation="Include city name in title, h1, or meta description for better local SEO.",
+                data={"city": city, "found_in": []}
+            )
+
         return CheckResult(
             check_id="local_seo_city_targeting", check_name="City Targeting",
             category=self.category_name, severity=Severity.HIGH,
-            passed=passed, score=100 if passed else 0,
-            detail=detail,
-            recommendation="Include city name in title, h1, or meta description for better local SEO.",
-            data={"city": city, "found_in": found_in}
+            passed=False, score=0,
+            detail=f"City '{city}' not found in page content",
+            recommendation="Include city name in your page content.",
+            data={"city": city, "found_in": []}
         )
 
     def _check_review_schema(self, pages) -> CheckResult:
