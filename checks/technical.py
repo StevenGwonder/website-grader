@@ -9,6 +9,25 @@ from bs4 import BeautifulSoup
 
 from .base import CheckResult, Severity, CheckCategory
 
+def classify_link_outcome(status_code, error_str) -> str:
+    if error_str:
+        err = error_str.lower()
+        if "timeout" in err or "timed out" in err or "timedout" in err or "deadline" in err:
+            return "timeout"
+        if "dns" in err or "name resolution" in err or "resolve" in err or "not known" in err:
+            return "dns_error"
+        if "ssl" in err or "tls" in err or "cert" in err or "handshake" in err:
+            return "tls_failure"
+        return "unverified_destination"
+    if status_code is not None:
+        if status_code == 403:
+            return "access_restricted"
+        if status_code == 429:
+            return "rate_limited"
+        if status_code >= 400:
+            return "broken"
+        return "valid"
+    return "unverified_destination"
 
 class TechnicalChecks(CheckCategory):
     category_name = "Technical SEO"
@@ -21,22 +40,38 @@ class TechnicalChecks(CheckCategory):
             return results
 
         results.append(self._check_meta_title(homepage))
-        results.append(self._check_meta_description(homepage))
-        results.append(self._check_heading_hierarchy(homepage))
+        results.append(self._check_tech_meta_desc(homepage))
+        results.append(self._check_tech_headings(homepage))
         results.append(self._check_canonical(homepage))
         results.append(self._check_robots_meta(homepage))
         results.append(self._check_schema(homepage))
-        results.append(self._check_open_graph(homepage))
+        results.append(self._check_tech_og_tags(homepage))
         results.append(self._check_twitter_cards(homepage))
         results.append(self._check_favicon(homepage))
         results.append(self._check_sitemap(crawl_result))
         results.append(self._check_robots_txt(crawl_result))
         results.append(self._check_broken_links(crawl_result))
-        results.append(self._check_redirect_chains(crawl_result))
+        results.append(self._check_tech_redirects(crawl_result))
         results.append(self._check_internal_links(crawl_result))
         results.append(self._check_url_structure(crawl_result))
         results.append(self._check_pagination(homepage))
         results.append(self._check_breadcrumbs(homepage))
+
+        # Inject raw-vs-rendered disparities into the relevant CheckResults
+        disparities = getattr(homepage, "raw_vs_rendered_disparities", {})
+        if disparities:
+            for r in results:
+                if r.check_id == "tech_meta_title" and "title" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["title"]
+                elif r.check_id == "tech_canonical" and "canonical" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["canonical"]
+                elif r.check_id == "tech_robots_meta" and "robots" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["robots"]
+                elif r.check_id == "tech_headings" and "headings" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["headings"]
+                elif r.check_id == "tech_schema" and "structured_data" in disparities:
+                    r.data["raw_vs_rendered_disparity"] = disparities["structured_data"]
+
         return results
 
     def _check_meta_title(self, page):
@@ -58,7 +93,7 @@ class TechnicalChecks(CheckCategory):
             data={"title": title, "length": len(title)},
         )
 
-    def _check_meta_description(self, page):
+    def _check_tech_meta_desc(self, page):
         meta = page.soup.find("meta", attrs={"name": "description"})
         desc = meta.get("content", "") if meta else ""
         passed = 120 <= len(desc) <= 160 and len(desc) > 0
@@ -77,7 +112,7 @@ class TechnicalChecks(CheckCategory):
             data={"description": desc, "length": len(desc)},
         )
 
-    def _check_heading_hierarchy(self, page):
+    def _check_tech_headings(self, page):
         headings = page.soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
         h1_count = len(page.soup.find_all("h1"))
         # Check for skipped levels (e.g., h1 → h3 with no h2)
@@ -140,7 +175,6 @@ class TechnicalChecks(CheckCategory):
         )
 
     def _check_schema(self, page):
-        """Check schema/structured data — parse @graph, partial scoring for valid schema types."""
         schemas = page.soup.find_all("script", type="application/ld+json")
         schema_types = []
         valid_schemas = []
@@ -149,54 +183,28 @@ class TechnicalChecks(CheckCategory):
                 data = json.loads(s.string or s.get_text() or "{}")
                 if isinstance(data, list):
                     for item in data:
-                        t = item.get("@type", "") if isinstance(item, dict) else ""
+                        t = item.get("@type", "")
                         schema_types.append(t)
                         valid_schemas.append(item)
                 elif isinstance(data, dict):
-                    # Handle @graph arrays (Yoast SEO pattern)
-                    if "@graph" in data:
-                        graph = data["@graph"]
-                        if isinstance(graph, list):
-                            for item in graph:
-                                if isinstance(item, dict):
-                                    t = item.get("@type", "")
-                                    schema_types.append(t)
-                                    valid_schemas.append(item)
-                        elif isinstance(graph, dict):
-                            t = graph.get("@type", "")
-                            schema_types.append(t)
-                            valid_schemas.append(graph)
-                    else:
-                        t = data.get("@type", "")
-                        schema_types.append(t)
-                        valid_schemas.append(data)
+                    t = data.get("@type", "")
+                    schema_types.append(t)
+                    valid_schemas.append(data)
             except (json.JSONDecodeError, TypeError):
                 pass
 
-        has_local_business = any("LocalBusiness" in str(t) for t in schema_types)
-        has_organization = any("Organization" in str(t) for t in schema_types)
-        has_faq = any("FAQPage" in str(t) for t in schema_types)
-        has_breadcrumb = any("BreadcrumbList" in str(t) for t in schema_types)
-        has_webpage = any("WebPage" in str(t) for t in schema_types)
-        has_website = any("WebSite" in str(t) for t in schema_types)
-        has_image = any("ImageObject" in str(t) for t in schema_types)
+        has_local_business = any("LocalBusiness" in t or "Organization" in t for t in schema_types)
+        has_faq = any("FAQPage" in t for t in schema_types)
+        has_breadcrumb = any("BreadcrumbList" in t for t in schema_types)
 
-        # Partial scoring — credit for having any valid schema
         score = 0
         if has_local_business: score += 50
-        if has_organization: score += 15
-        if has_faq: score += 15
-        if has_breadcrumb: score += 10
-        if has_webpage: score += 5
-        if has_website: score += 5
-        if has_image: score += 5
-        # Cap at 100
-        score = min(100, score)
+        if has_faq: score += 25
+        if has_breadcrumb: score += 25
         if not schemas: score = 0
 
-        passed = score >= 50  # At least has LocalBusiness or equivalent
+        passed = score >= 50  # At least LocalBusiness or Organization
 
-        types_str = ", ".join(t for t in schema_types if t) if schema_types else "none"
         return CheckResult(
             check_id="tech_schema",
             check_name="Schema / Structured Data",
@@ -204,9 +212,9 @@ class TechnicalChecks(CheckCategory):
             severity=Severity.CRITICAL,
             passed=passed,
             score=score,
-            detail=f"Found {len(schemas)} schema blocks: {types_str}",
-            recommendation="Add LocalBusiness schema with name, address, phone, geo, and hours. Add FAQ schema for FAQ sections. Use Google's Rich Results Test to validate." if not has_local_business else "",
-            fix_code=self._generate_local_business_schema(page) if not has_local_business else None,
+            detail=f"Found {len(schemas)} schema blocks: {', '.join(schema_types) if schema_types else 'none'}",
+            recommendation="Add LocalBusiness schema with name, address, phone, geo, and hours. Add FAQ schema for FAQ sections. Use Google's Rich Results Test to validate." if not passed else "",
+            fix_code=self._generate_local_business_schema(page),
             fix_difficulty="Medium (30 min)",
             impact_estimate="Critical — schema helps Google understand your business and enables rich snippets in search results",
             data={"schema_types": schema_types, "valid_schemas": valid_schemas},
@@ -253,7 +261,7 @@ class TechnicalChecks(CheckCategory):
             "url": page.final_url
         }, indent=2)
 
-    def _check_open_graph(self, page):
+    def _check_tech_og_tags(self, page):
         og_tags = page.soup.find_all("meta", attrs={"property": re.compile(r"^og:")})
         og_keys = [t.get("property") for t in og_tags]
         required = ["og:title", "og:description", "og:image", "og:url"]
@@ -314,7 +322,23 @@ class TechnicalChecks(CheckCategory):
     def _check_sitemap(self, crawl_result):
         has_sitemap = bool(crawl_result.sitemap_xml)
         url_count = len(crawl_result.sitemap_urls)
-        passed = has_sitemap and url_count > 0
+        
+        # Detect if it's a sitemap index file
+        is_index = False
+        if has_sitemap and ("<sitemapindex" in crawl_result.sitemap_xml.lower()):
+            is_index = True
+
+        passed = has_sitemap and (url_count > 0 or is_index)
+        
+        detail = ""
+        if has_sitemap:
+            if is_index:
+                detail = f"Sitemap index found with {url_count} parsed child URLs"
+            else:
+                detail = f"Sitemap found with {url_count} URLs"
+        else:
+            detail = "No sitemap.xml found"
+
         return CheckResult(
             check_id="tech_sitemap",
             check_name="XML Sitemap",
@@ -322,7 +346,7 @@ class TechnicalChecks(CheckCategory):
             severity=Severity.HIGH,
             passed=passed,
             score=100 if passed else 0,
-            detail=f"Sitemap found with {url_count} URLs" if has_sitemap else "No sitemap.xml found",
+            detail=detail,
             recommendation="Create an XML sitemap at /sitemap.xml listing all your pages. Submit it in Google Search Console." if not passed else "",
             fix_code="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url><loc>https://yourdomain.com/</loc></url>\n</urlset>",
             fix_difficulty="Easy (10 min)",
@@ -365,85 +389,61 @@ class TechnicalChecks(CheckCategory):
                     all_links.add(full_url)
 
         broken = []
-        base_domain = crawl_result.base_domain
+        external_outcomes = {}
         for link in all_links:
+            is_internal = urlparse(link).netloc == crawl_result.base_domain
+            status = None
+            error_str = None
             try:
                 resp = req.head(link, timeout=5, allow_redirects=True, impersonate="chrome")
                 status = resp.status_code
-                link_domain = urlparse(link).netloc
-                is_internal = link_domain == base_domain or link_domain == "www." + base_domain or base_domain == "www." + link_domain
-                if is_internal:
-                    if status != 200:
-                        broken.append({"url": link, "status": status})
-                else:
-                    if status == 404 or status >= 500:
-                        broken.append({"url": link, "status": status})
-            except Exception:
-                broken.append({"url": link, "status": "error"})
+            except Exception as e:
+                error_str = str(e)
+                
+            classification = classify_link_outcome(status, error_str)
+            
+            if not is_internal:
+                external_outcomes[link] = classification
+                if classification == "broken":
+                    broken.append({"url": link, "status": status or "error"})
+            else:
+                if classification == "broken" or status is None:
+                    broken.append({"url": link, "status": status or "error"})
 
-        count = len(broken)
-        if count == 0:
-            score = 100
-        elif count <= 2:
-            score = 80
-        else:
-            score = max(0, 100 - count * 20)
-        passed = count == 0
-
-        if not all_links:
-            detail = "No links found to check"
-        elif count == 0:
-            detail = f"Checked {len(all_links)} links, no broken links found"
-        else:
-            urls = ", ".join(b["url"] for b in broken[:5])
-            detail = f"Checked {len(all_links)} links, found {count} broken: {urls}"
-
+        passed = len(broken) == 0
         return CheckResult(
             check_id="tech_broken_links",
             check_name="Broken Links",
             category=self.category_name,
             severity=Severity.CRITICAL,
             passed=passed,
-            score=score,
-            detail=detail,
-            recommendation=f"Fix {count} broken links. These hurt UX and SEO." if broken else "",
+            score=100 if passed else max(0, 100 - len(broken) * 20),
+            detail=f"Checked {len(all_links)} links, found {len(broken)} broken" if all_links else "No links found to check",
+            recommendation=f"Fix {len(broken)} broken links. These hurt UX and SEO." if broken else "",
             fix_code="\n".join([f"<!-- Fix: {b['url']} returned {b['status']} -->" for b in broken[:5]]),
             fix_difficulty="Medium (varies)",
             impact_estimate="Critical — broken links hurt user experience and crawl budget",
-            data={"total_links": len(all_links), "broken_links": broken},
+            data={
+                "total_links": len(all_links),
+                "broken_links": broken,
+                "external_link_outcomes": external_outcomes
+            },
         )
 
-    def _check_redirect_chains(self, crawl_result):
-        def is_standard_redirect(url, final_url):
-            # http -> https
-            if url.startswith("http://") and final_url.startswith("https://"):
-                rest_u = url[7:]
-                rest_f = final_url[8:]
-                if rest_u == rest_f:
-                    return True
-            # www -> non-www (or vice versa)
-            for u, f in [(url, final_url), (final_url, url)]:
-                parsed_u = urlparse(u)
-                parsed_f = urlparse(f)
-                host_u = parsed_u.netloc
-                host_f = parsed_f.netloc
-                path_u = parsed_u.path
-                path_f = parsed_f.path
-                if path_u == path_f and host_u.replace("www.", "", 1) == host_f.replace("www.", "", 1):
-                    if ("www." + host_u == host_f) or ("www." + host_f == host_u):
-                        return True
-            # sitemap.xml -> sitemap_index.xml
-            if url.endswith("/sitemap.xml") and final_url.endswith("/sitemap_index.xml"):
-                return True
-            return False
-
-        problematic = []
+    def _check_tech_redirects(self, crawl_result):
+        chains = []
         for url, page in crawl_result.pages.items():
-            if page.final_url and page.final_url != url:
-                if not is_standard_redirect(url, page.final_url):
-                    problematic.append({"from": url, "to": page.final_url})
-
-        passed = len(problematic) == 0
+            hops = getattr(page, "redirect_hops", [])
+            redirect_type = getattr(page, "redirect_type", None)
+            is_chain = (redirect_type in ("redirect_chain", "loop")) or (len(hops) > 2)
+            if is_chain:
+                chains.append({
+                    "from": url,
+                    "to": page.final_url,
+                    "hops": hops,
+                    "type": redirect_type or "redirect_chain"
+                })
+        passed = len(chains) == 0
         return CheckResult(
             check_id="tech_redirects",
             check_name="Redirect Chains",
@@ -451,11 +451,11 @@ class TechnicalChecks(CheckCategory):
             severity=Severity.MEDIUM,
             passed=passed,
             score=100 if passed else 50,
-            detail=f"Found {len(problematic)} non-standard redirects" if problematic else "No problematic redirect chains detected",
-            recommendation="Minimize non-standard redirects. Each redirect adds latency. Direct links are better than chains." if not passed else "",
+            detail=f"Found {len(chains)} redirect chains/loops" if chains else "No redirect chains detected",
+            recommendation="Minimize redirects. Each redirect adds latency. Direct links are better than chains." if not passed else "",
             fix_difficulty="Medium",
             impact_estimate="Medium — redirect chains add latency and dilute link equity",
-            data={"redirects": problematic},
+            data={"redirects": chains},
         )
 
     def _check_internal_links(self, crawl_result):
@@ -519,52 +519,31 @@ class TechnicalChecks(CheckCategory):
         next_link = page.soup.find("link", rel="next")
         prev_link = page.soup.find("link", rel="prev")
         has_pagination = bool(next_link or prev_link)
-        # Pagination is optional — informational only, always passes
-        if has_pagination:
-            score = 100
-            detail = f"Pagination tags: next={'yes' if next_link else 'no'}, prev={'yes' if prev_link else 'no'}"
-            recommendation = ""
-        else:
-            score = 100  # No pagination needed — not penalized
-            detail = "No pagination tags (not required for most sites)"
-            recommendation = "If you have multi-page content (blog, portfolio), add rel=next/prev tags."
+        # Pagination is optional — only flag if site has blog/content sections
         return CheckResult(
             check_id="tech_pagination",
             check_name="Pagination Tags",
             category=self.category_name,
             severity=Severity.LOW,
-            passed=True,  # Always passes — informational
-            score=score,
-            detail=detail,
-            recommendation=recommendation,
+            passed=True,  # Not failing — informational
+            score=100 if has_pagination else 50,
+            detail=f"Pagination tags: next={'yes' if next_link else 'no'}, prev={'yes' if prev_link else 'no'}",
+            recommendation="If you have multi-page content (blog, portfolio), add rel=next/prev tags." if not has_pagination else "",
             data={"has_next": bool(next_link), "has_prev": bool(prev_link)},
         )
 
     def _check_breadcrumbs(self, page):
         breadcrumb_html = page.soup.find(class_=re.compile(r"breadcrumb", re.I))
-        # Also check for BreadcrumbList schema (including @graph)
+        # Also check for BreadcrumbList schema
         schemas = page.soup.find_all("script", type="application/ld+json")
         has_breadcrumb_schema = False
         for s in schemas:
             try:
                 data = json.loads(s.string or s.get_text() or "{}")
-                items = []
-                if isinstance(data, dict):
-                    if "@graph" in data:
-                        graph = data["@graph"]
-                        items = graph if isinstance(graph, list) else [graph]
-                    else:
-                        items = [data]
-                elif isinstance(data, list):
-                    items = data
-                for item in items:
-                    if isinstance(item, dict) and "BreadcrumbList" in str(item.get("@type", "")):
-                        has_breadcrumb_schema = True
-                        break
+                if isinstance(data, dict) and "BreadcrumbList" in str(data.get("@type", "")):
+                    has_breadcrumb_schema = True
             except (json.JSONDecodeError, TypeError):
                 pass
-            if has_breadcrumb_schema:
-                break
         has_breadcrumbs = bool(breadcrumb_html) or has_breadcrumb_schema
         return CheckResult(
             check_id="tech_breadcrumbs",

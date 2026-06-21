@@ -51,7 +51,8 @@ def test_frozen_seo_com_audit():
         
         # The baseline score of seo.com under the legacy audit engine is 53, but with sitemap and 403 external link fixes, it rises to 55.
         # With Phase 3 contextual severity and scoring, it remains 55.
-        assert score_data["overall_score"] == 55
+        # With Sprint 2 readability fix (content-only extraction + better syllable counting), score drops 1 point to 54.
+        assert score_data["overall_score"] == 54
         assert score_data["grade"] == "F"
         
         # Verify specific category scores match the legacy audit report (updated for Phase 3)
@@ -62,7 +63,8 @@ def test_frozen_seo_com_audit():
         assert categories["Content Quality"]["score"] == 65
         assert categories["Security"]["score"] == 76
         assert categories["Accessibility"]["score"] == 33
-        assert categories["Social & Conversion"]["score"] == 100
+        # Sprint 2: trust_signals scoring changed from binary 0/100 to scale based on signal count
+        assert categories["Social & Conversion"]["score"] == 87
         
         # 4. Generate fixes and HTML report to confirm no exceptions are thrown
         fixes = generate_fixes(crawl_result, all_results)
