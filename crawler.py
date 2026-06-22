@@ -529,9 +529,23 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 15, enable_playwrigh
     if result.robots_txt:
         result.robots_parser = RobotsParser(result.robots_txt)
 
-    sitemap_url = urljoin(url, '/sitemap.xml')
+    # Read Sitemap: directive from robots.txt, fall back to /sitemap.xml
+    sitemap_urls_to_try = []
+    if result.robots_txt:
+        for line in result.robots_txt.splitlines():
+            if line.lower().startswith('sitemap:'):
+                sm_url = line.split(':', 1)[1].strip()
+                if sm_url:
+                    sitemap_urls_to_try.append(sm_url)
+    default_sitemap = urljoin(url, '/sitemap.xml')
+    if default_sitemap not in sitemap_urls_to_try:
+        sitemap_urls_to_try.append(default_sitemap)
+
     crawled_sitemaps = set()
-    _fetch_and_parse_sitemap(sitemap_url, timeout, session, result, crawled_sitemaps)
+    for sm_url in sitemap_urls_to_try:
+        _fetch_and_parse_sitemap(sm_url, timeout, session, result, crawled_sitemaps)
+        if result.sitemap_urls:
+            break
 
     def record_discovered_links(page):
         if page.soup:

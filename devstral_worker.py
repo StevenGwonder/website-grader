@@ -17,11 +17,16 @@ import time
 import requests
 
 OLLAMA_BASE = "https://ollama.com/v1"
+NVIDIA_BASE = "https://integrate.api.nvidia.com/v1"
 MODEL = "devstral-small-2:24b"
 FALLBACK_MODEL = "devstral-small-2:24b"  # Same model — Sierra takes over on failure, no model switch
 MAX_TOKENS = 4000
 TEMPERATURE = 0.3
-TIMEOUT = 180
+TIMEOUT = 300
+
+# Allow override via command-line args (set in main)
+_active_base = OLLAMA_BASE
+_active_key_env = "OLLAMA_API_KEY"
 
 PONYTAIL_SYSTEM = """You are a Python coding assistant following the PONYTAIL principle:
 - Simplest thing that actually works
@@ -37,9 +42,9 @@ Output code in triple-backtick python blocks. One file per block, with the filen
 """
 
 def load_api_key():
-    """Load OLLAMA API key from ~/.hermes/.env"""
+    """Load API key for the active provider from ~/.hermes/.env"""
     env_path = os.path.expanduser("~/.hermes/.env")
-    prefix = "OLLAMA" + "_API" + "_KEY" + "="
+    prefix = _active_key_env + "="
     with open(env_path) as f:
         for line in f:
             if line.startswith(prefix):
@@ -54,7 +59,7 @@ def call_devstral(messages, model=MODEL, max_tokens=MAX_TOKENS):
 
     start = time.time()
     resp = requests.post(
-        f"{OLLAMA_BASE}/chat/completions",
+        f"{_active_base}/chat/completions",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
             "model": model,
@@ -92,6 +97,17 @@ def extract_code_blocks(text):
             filename = "output.py"
             code = block.strip()
         blocks[filename] = code
+    # Also try plain ``` blocks if no python blocks found
+    if not blocks:
+        pattern2 = r"```\n(.*?)```"
+        matches2 = re.findall(pattern2, text, re.DOTALL)
+        for block in matches2:
+            lines = block.strip().split("\n")
+            first_line = lines[0].strip()
+            if first_line.startswith("#") and ("." in first_line):
+                filename = first_line.lstrip("# ").strip()
+                code = "\n".join(lines[1:]).strip()
+                blocks[filename] = code
     return blocks
 
 def read_file_safe(path):
@@ -205,9 +221,25 @@ Output each file in a separate python code block."""
     }
 
 def main():
+    global _active_base, _active_key_env, MODEL, FALLBACK_MODEL
+
     parser = argparse.ArgumentParser(description="Devstral Coding Worker")
-    parser.add_argument("--task-file", required=True, help="Path to task JSON file")
+    parser.add_argument("--task-file", required=True, help="Path to task JSON")
+    parser.add_argument("--model", default=None, help="Override model name (e.g. minimaxai/minimax-m3)")
+    parser.add_argument("--provider", default="ollama", choices=["ollama", "nvidia"],
+                        help="API provider: ollama (default) or nvidia")
     args = parser.parse_args()
+
+    if args.provider == "nvidia":
+        _active_base = NVIDIA_BASE
+        _active_key_env = "NVIDIA_API_KEY"
+        if args.model:
+            MODEL = args.model
+            FALLBACK_MODEL = args.model
+    elif args.model:
+        MODEL = args.model
+        FALLBACK_MODEL = args.model
+
     result = process_task(args.task_file)
     print("\n" + "=" * 60)
     print(json.dumps(result, indent=2))

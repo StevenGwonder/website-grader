@@ -148,6 +148,8 @@ class PerformanceChecks(CheckCategory):
 
         lazy_count = sum(1 for img in imgs if img.get('loading') == 'lazy')
         format_scores = []
+        modern_count = 0
+        legacy_count = 0
         for img in imgs:
             src = img.get('src', '') or img.get('data-src', '')
             if not src:
@@ -156,8 +158,13 @@ class PerformanceChecks(CheckCategory):
             ext = src.split('.')[-1].lower().split('?')[0]
             if ext == 'webp':
                 format_scores.append(100)
+                modern_count += 1
             elif ext in ('jpg', 'jpeg', 'png'):
                 format_scores.append(70)
+                legacy_count += 1
+            elif ext in ('avif', 'svg'):
+                format_scores.append(100)
+                modern_count += 1
             else:
                 format_scores.append(30)
 
@@ -165,7 +172,23 @@ class PerformanceChecks(CheckCategory):
         lazy_score = (lazy_count / total) * 100
         score = int((avg_format + lazy_score) / 2)
         passed = score > 70
-        detail = f"Found {total} images, {lazy_count} with lazy loading, {sum(1 for s in format_scores if s >= 70)} in modern formats"
+
+        modern_str = f"{modern_count} in modern formats" if modern_count > 0 else "0 in modern formats"
+        legacy_str = f"{legacy_count} in legacy formats (jpg/png)" if legacy_count > 0 else ""
+        detail = f"Found {total} images, {lazy_count} with lazy loading, {modern_str}"
+        if legacy_str:
+            detail += f", {legacy_str}"
+
+        # Smart recommendation based on actual state
+        if legacy_count > 0 and modern_count == 0:
+            recommendation = "Convert images to WebP/AVIF format and add lazy loading."
+        elif legacy_count > 0 and modern_count > 0:
+            recommendation = f"Convert remaining {legacy_count} legacy image(s) to WebP/AVIF format."
+        elif lazy_count < total:
+            recommendation = f"Add loading='lazy' to {total - lazy_count} image(s) without it."
+        else:
+            recommendation = ""  # Everything looks good
+
         return CheckResult(
             check_id="performance_images",
             check_name="Image Optimization",
@@ -174,7 +197,7 @@ class PerformanceChecks(CheckCategory):
             passed=passed,
             score=score,
             detail=detail,
-            recommendation="Use WebP format and lazy loading for images.",
+            recommendation=recommendation,
         )
 
     def _check_css_js(self, page) -> CheckResult:
