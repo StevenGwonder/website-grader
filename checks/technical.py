@@ -222,40 +222,23 @@ class TechnicalChecks(CheckCategory):
 
     def _generate_local_business_schema(self, page):
         """Generate LocalBusiness JSON-LD schema snippet."""
-        # Try to extract NAP from page
-        soup = page.soup
-        name = ""
-        title_tag = soup.find("title")
-        if title_tag:
-            name = title_tag.get_text(strip=True).split("—")[0].strip()
-
-        phone = ""
-        tel = soup.find("a", href=re.compile(r"^tel:"))
-        if tel:
-            phone = tel.get("href", "").replace("tel:", "")
-
         return json.dumps({
             "@context": "https://schema.org",
             "@type": "LocalBusiness",
-            "name": name or "Your Business Name",
-            "telephone": phone or "+1-555-555-5555",
+            "name": "Your Business Name",
             "address": {
                 "@type": "PostalAddress",
-                "streetAddress": "123 Main St",
-                "addressLocality": "City",
-                "addressRegion": "ST",
-                "postalCode": "00000",
+                "streetAddress": "Your Address",
+                "addressLocality": "Your City",
+                "addressRegion": "Your State",
+                "postalCode": "Your Zip Code",
                 "addressCountry": "US"
             },
-            "geo": {
-                "@type": "GeoCoordinates",
-                "latitude": 0.0,
-                "longitude": 0.0
-            },
+            "telephone": "Your Phone Number",
             "openingHoursSpecification": [{
                 "@type": "OpeningHoursSpecification",
                 "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
-                "opens": "08:00",
+                "opens": "09:00",
                 "closes": "17:00"
             }],
             "url": page.final_url
@@ -395,7 +378,7 @@ class TechnicalChecks(CheckCategory):
             status = None
             error_str = None
             try:
-                resp = req.head(link, timeout=5, allow_redirects=True, impersonate="chrome")
+                resp = req.get(link, timeout=5, stream=True, allow_redirects=True, impersonate="chrome")
                 status = resp.status_code
             except Exception as e:
                 error_str = str(e)

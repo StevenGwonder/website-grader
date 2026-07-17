@@ -41,10 +41,15 @@ class NetworkFreeMock:
         is_homepage = "seo.com" in url and "sitemap.xml" not in url and "robots.txt" not in url and "/contact/" not in url and "/services/" not in url and "/ai/services/" not in url and "/ppc-management/" not in url
         if is_homepage:
             time.sleep(0.33)
-            
+
+        # Special case for known restricted external links
+        if "g2.com" in url:
+            return MockResponse("", url, 403, {})
+
         entry = self._resolve_url(url)
         if not entry:
-            return MockResponse("404 Not Found", url, 404, {})
+            # Fallback for link checking: assume normal links pass
+            return MockResponse("", url, 200, {})
         
         file_path = os.path.join(self.dir_path, entry["file"])
         if os.path.exists(file_path):

@@ -32,7 +32,7 @@ def test_defect_sitemap_index_classification():
     assert "index" in result.detail.lower()
 
 # 2. External 403 Forbidden classified as a broken link instead of access-restricted or unverified
-@patch("checks.technical.req.head")
+@patch("checks.technical.req.get")
 def test_defect_external_403_classification(mock_head):
     mock_head.return_value = MagicMock(status_code=403)
     html = '<a href="https://g2.com/restricted-page">G2 Page</a>'

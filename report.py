@@ -109,13 +109,27 @@ def _grade_color(grade):
         "F": "#ef4444"
     }.get(grade, "#ef4444")
 
+def _default_why_text(category):
+    """Return meaningful fallback 'Why It Matters' text per category."""
+    texts = {
+        "Technical SEO": "Technical SEO ensures search engines can properly crawl, index, and render your pages. Issues here directly impact your organic search visibility and can prevent entire sections of your site from appearing in search results.",
+        "Performance": "Page speed and performance directly affect user experience, conversion rates, and search engine rankings. Slow-loading pages increase bounce rates and reduce the time users spend on your site.",
+        "Content": "Content quality and structure determine how well your pages communicate value to both users and search engines. Well-optimized content drives organic traffic and establishes topical authority.",
+        "Local SEO": "Local SEO signals help your business appear in geographically-targeted searches and Google's Local Pack. Consistent NAP (Name, Address, Phone) data across the web builds trust with both users and search algorithms.",
+        "Security": "Security measures protect your users' data and your site's integrity. HTTPS, security headers, and proper configurations prevent data breaches and build user trust.",
+        "Accessibility": "Web accessibility ensures your site is usable by people with disabilities, expands your audience reach, and is increasingly factored into search engine rankings. It also reduces legal compliance risk.",
+        "Social & Conversion": "Social signals and conversion elements turn passive visitors into engaged users and customers. Clear calls-to-action, social proof, and analytics tracking are essential for measuring and improving business outcomes.",
+        "External Intelligence": "External data sources provide independent verification of your site's security posture, certificate health, and technology stack. These signals help identify issues that internal checks alone may miss.",
+    }
+    return texts.get(category, f"Addressing issues in the {category} domain improves overall site quality, user trust, and search engine performance.")
+
 def _bar(label, score, weight):
     color = _score_color(score)
     return f"""
     <div class="bar-row">
       <span class="bar-label">{label} <small>({weight}%)</small></span>
       <div class="bar-track">
-        <div class="bar-fill" style="width:{score}%;background:{color}; box-shadow: 0 0 10px {color}80;"></div>
+        <div class="bar-fill" style="width:{score}%;background:{color};"></div>
       </div>
       <span class="bar-score">{score}</span>
     </div>"""
@@ -127,7 +141,7 @@ def _check_row(r):
     
     # Extract location (where) & impact (why)
     where_text = r.detail
-    why_text = WHY_MAP.get(r.check_id, f"Ensures optimal compliance with standard best practices in the {r.category} domain.")
+    why_text = WHY_MAP.get(r.check_id, _default_why_text(r.category))
     
     fix_section = ""
     if not r.passed:
@@ -283,6 +297,7 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     grade = score_data["grade"]
     score = score_data["overall_score"]
     gcolor = _grade_color(grade)
+    scolor = _score_color(score)
     cat_bars = "".join(_bar(cat, d["score"], d["weight"]) for cat, d in score_data["categories"].items())
     checks_html = "".join(_check_row(r) for r in all_results)
     nap = _nap_table(crawl_result, all_results)
@@ -448,17 +463,6 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     }
 
-    .score-card::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, {GCOLOR}15 0%, transparent 70%);
-      pointer-events: none;
-    }
-
     /* Circular SVG Gauge */
     .radial-gauge-container {
       position: relative;
@@ -474,9 +478,8 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     }
 
     .score-radial-progress {
-      color: {GCOLOR};
+      color: {SCOLOR};
       transition: stroke-dashoffset 1s ease-in-out;
-      filter: drop-shadow(0 0 6px {GCOLOR}80);
     }
 
     .radial-text-container {
@@ -1150,10 +1153,19 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
       }
       .check-body {
         background: #fafafa;
+        display: none;
+      }
+      .check-card.failed .check-body {
         display: block !important;
       }
       .copy-btn, .controls-bar, .ai-bridge-box, .copy-btn, .config-tab-headers {
         display: none !important;
+      }
+      .card:nth-of-type(1) {
+        page-break-before: always;
+      }
+      h2:has(+ .controls-bar) {
+        page-break-before: always;
       }
     }
   </style>
@@ -1441,38 +1453,44 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
 </body>
 </html>"""
 
-    # Format replacements on the non-f-string template
-    output = html_template.replace("{URL}", url)
-    output = output.replace("{SCORE}", str(score))
-    output = output.replace("{GRADE}", grade)
-    output = output.replace("{STROKE_OFFSET}", f"{stroke_offset:.2f}")
-    output = output.replace("{PASSED_COUNT}", str(passed_count))
-    output = output.replace("{FAILED_COUNT}", str(failed_count))
-    output = output.replace("{HIGH_FAILED_COUNT}", str(high_failed_count))
-    output = output.replace("{TOTAL_COUNT}", str(total_count))
-    output = output.replace("{DATE}", date)
-    output = output.replace("{GCOLOR}", gcolor)
-    output = output.replace("{BG}", BG)
-    output = output.replace("{CARD}", CARD)
-    output = output.replace("{BORDER}", BORDER)
-    output = output.replace("{ORANGE}", ORANGE)
-    output = output.replace("{BLUE}", BLUE)
-    output = output.replace("{TEXT}", TEXT)
-    output = output.replace("{MUTED}", MUTED)
-    output = output.replace("{CAT_BARS}", cat_bars)
-    output = output.replace("{PLAN}", plan)
-    
+    # Format replacements using dict-based approach
+    replacements = {
+        "{URL}": url,
+        "{SCORE}": str(score),
+        "{GRADE}": grade,
+        "{STROKE_OFFSET}": f"{stroke_offset:.2f}",
+        "{PASSED_COUNT}": str(passed_count),
+        "{FAILED_COUNT}": str(failed_count),
+        "{HIGH_FAILED_COUNT}": str(high_failed_count),
+        "{TOTAL_COUNT}": str(total_count),
+        "{DATE}": date,
+        "{GCOLOR}": gcolor,
+        "{SCOLOR}": scolor,
+        "{BG}": BG,
+        "{CARD}": CARD,
+        "{BORDER}": BORDER,
+        "{ORANGE}": ORANGE,
+        "{BLUE}": BLUE,
+        "{TEXT}": TEXT,
+        "{MUTED}": MUTED,
+        "{CAT_BARS}": cat_bars,
+        "{PLAN}": plan,
+    }
+    output = html_template
+    for placeholder, value in replacements.items():
+        output = output.replace(placeholder, value)
+
     # Conditional section renders
     nap_sec = f'<div class="card"><h2>📇 NAP Placement Consistency (Local SEO)</h2>{nap}</div>' if nap else ''
     perf_sec = f'<div class="card"><h2>⚡ Baseline Request Profiles</h2>{perf}</div>' if perf else ''
     output = output.replace("{NAP_SECTION}", nap_sec)
     output = output.replace("{PERF_SECTION}", perf_sec)
-    
+
     output = output.replace("{CHECKS_HTML}", checks_html)
     output = output.replace("{ROBOTS_TMPL}", robots_tmpl)
     output = output.replace("{SITEMAP_TMPL}", sitemap_tmpl)
     output = output.replace("{HTACCESS_TMPL}", htaccess_tmpl)
-    
+
     # Secure double-check of payload insertion
     output = output.replace("{AI_JSON_PAYLOAD}", json.dumps(ai_json_payload, indent=2).replace("</", "<\\/"))
     

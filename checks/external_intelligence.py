@@ -11,6 +11,27 @@ class ExternalIntelligenceChecks(CheckCategory):
     category_name = "External Intelligence"
     category_weight = 5  # 5% — supplementary, not core
 
+    def _safe_check(self, check_id, check_name, severity, fn, *args, **kwargs):
+        """Wrap a check function with standard try/except/return-CheckResult boilerplate.
+        
+        The fn should return a CheckResult on success. On exception, this returns
+        a safe INFO/passed=True result.
+        """
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            return CheckResult(
+                check_id=check_id,
+                check_name=check_name,
+                category=self.category_name,
+                severity=Severity.INFO,
+                passed=True,
+                score=100,
+                detail=f"{check_name} unavailable: {e}",
+                recommendation="",
+                data={"error": str(e)},
+            )
+
     def run(self, crawl_result) -> list:
         results = []
         base_url = crawl_result.base_url
@@ -19,14 +40,13 @@ class ExternalIntelligenceChecks(CheckCategory):
         results.append(self._check_mozilla_observatory(domain))
         results.append(self._check_crt_sh(domain))
         results.append(self._check_hsts_preload(domain))
-        results.append(self._check_whatweb(crawl_result))
         results.append(self._check_wappalyzer(crawl_result))
         results.append(self._check_whois(domain))
         return results
 
     def _check_mozilla_observatory(self, domain: str) -> CheckResult:
         """Check security headers via Mozilla Observatory free API."""
-        try:
+        def _run():
             resp = req.get(
                 f"https://observatory-api.mdn.mozilla.net/api/v2/scan?host={domain}",
                 timeout=15,
@@ -70,22 +90,17 @@ class ExternalIntelligenceChecks(CheckCategory):
                     recommendation="",
                     data={"status_code": resp.status_code},
                 )
-        except Exception as e:
-            return CheckResult(
-                check_id="ext_mozilla_observatory",
-                check_name="Mozilla Observatory (Security Headers)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail=f"Mozilla Observatory API unavailable: {e}",
-                recommendation="",
-                data={"error": str(e)},
-            )
+
+        return self._safe_check(
+            "ext_mozilla_observatory",
+            "Mozilla Observatory (Security Headers)",
+            Severity.HIGH,
+            _run,
+        )
 
     def _check_crt_sh(self, domain: str) -> CheckResult:
         """Check SSL certificate history via crt.sh free API."""
-        try:
+        def _run():
             # Strip port and www prefix for crt.sh lookup
             clean_domain = domain.split(":")[0]
             if clean_domain.startswith("www."):
@@ -167,22 +182,17 @@ class ExternalIntelligenceChecks(CheckCategory):
                     detail=f"crt.sh API returned HTTP {resp.status_code} — check skipped",
                     recommendation="",
                 )
-        except Exception as e:
-            return CheckResult(
-                check_id="ext_crt_sh",
-                check_name="SSL Certificate History (crt.sh)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail=f"crt.sh API unavailable: {e}",
-                recommendation="",
-                data={"error": str(e)},
-            )
+
+        return self._safe_check(
+            "ext_crt_sh",
+            "SSL Certificate History (crt.sh)",
+            Severity.MEDIUM,
+            _run,
+        )
 
     def _check_hsts_preload(self, domain: str) -> CheckResult:
         """Check if domain is in Chrome's HSTS preload list."""
-        try:
+        def _run():
             clean_domain = domain.split(":")[0]
             resp = req.get(
                 f"https://hstspreload.org/api/v2/status?domain={clean_domain}",
@@ -220,126 +230,32 @@ class ExternalIntelligenceChecks(CheckCategory):
                     detail=f"HSTS Preload API returned HTTP {resp.status_code} — check skipped",
                     recommendation="",
                 )
-        except Exception as e:
-            return CheckResult(
-                check_id="ext_hsts_preload",
-                check_name="HSTS Preload List",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail=f"HSTS Preload API unavailable: {e}",
-                recommendation="",
-                data={"error": str(e)},
-            )
 
-    def _check_whatweb(self, crawl_result) -> CheckResult:
-        """Detect tech stack using WhatWeb CLI if available."""
-        import subprocess
-        import shutil
+        return self._safe_check(
+            "ext_hsts_preload",
+            "HSTS Preload List",
+            Severity.LOW,
+            _run,
+        )
 
-        whatweb_path = shutil.which("whatweb")
-        if not whatweb_path:
-            return CheckResult(
-                check_id="ext_whatweb",
-                check_name="Technology Stack (WhatWeb)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail="WhatWeb CLI not installed — check skipped. Install with: apt install whatweb",
-                recommendation="",
-                data={"available": False},
-            )
-
-        try:
-            result = subprocess.run(
-                [whatweb_path, "--no-errors", "--quiet", crawl_result.base_url],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            output = result.stdout.strip()
-            if output:
-                # Parse WhatWeb output — format: "URL [tech1, tech2, ...]"
-                techs = []
-                if "[" in output and "]" in output:
-                    tech_part = output[output.index("[") + 1 : output.index("]")]
-                    techs = [t.strip() for t in tech_part.split(",") if t.strip()]
-
-                passed = len(techs) > 0
-                detail = f"WhatWeb: {len(techs)} technologies detected"
-                if techs:
-                    detail += f" — {', '.join(techs[:10])}"
-                    if len(techs) > 10:
-                        detail += f" and {len(techs) - 10} more"
-
+    def _check_whois(self, domain: str) -> CheckResult:
+        """Check domain registration details via WHOIS (local, no API key)."""
+        def _run():
+            try:
+                import whois
+            except ImportError:
                 return CheckResult(
-                    check_id="ext_whatweb",
-                    check_name="Technology Stack (WhatWeb)",
-                    category=self.category_name,
-                    severity=Severity.INFO,
-                    passed=passed,
-                    score=100 if passed else 50,
-                    detail=detail,
-                    recommendation="",
-                    data={"technologies": techs, "available": True},
-                )
-            else:
-                return CheckResult(
-                    check_id="ext_whatweb",
-                    check_name="Technology Stack (WhatWeb)",
+                    check_id="ext_whois",
+                    check_name="Domain WHOIS (Age, Expiry, Registrar)",
                     category=self.category_name,
                     severity=Severity.INFO,
                     passed=True,
                     score=100,
-                    detail="WhatWeb: No output returned",
+                    detail="python-whois package not installed — check skipped. Install with: pip install python-whois",
                     recommendation="",
-                    data={"available": True},
+                    data={"available": False},
                 )
-        except subprocess.TimeoutExpired:
-            return CheckResult(
-                check_id="ext_whatweb",
-                check_name="Technology Stack (WhatWeb)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail="WhatWeb timed out — check skipped",
-                recommendation="",
-                data={"available": True, "error": "timeout"},
-            )
-        except Exception as e:
-            return CheckResult(
-                check_id="ext_whatweb",
-                check_name="Technology Stack (WhatWeb)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail=f"WhatWeb error: {e}",
-                recommendation="",
-                data={"available": True, "error": str(e)},
-            )
 
-    def _check_whois(self, domain: str) -> CheckResult:
-        """Check domain registration details via WHOIS (local, no API key)."""
-        try:
-            import whois
-        except ImportError:
-            return CheckResult(
-                check_id="ext_whois",
-                check_name="Domain WHOIS (Age, Expiry, Registrar)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail="python-whois package not installed — check skipped. Install with: pip install python-whois",
-                recommendation="",
-                data={"available": False},
-            )
-
-        try:
             clean_domain = domain.split(":")[0]
             w = whois.whois(clean_domain)
 
@@ -418,37 +334,32 @@ class ExternalIntelligenceChecks(CheckCategory):
                     "available": True,
                 },
             )
-        except Exception as e:
-            return CheckResult(
-                check_id="ext_whois",
-                check_name="Domain WHOIS (Age, Expiry, Registrar)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail=f"WHOIS lookup unavailable: {e}",
-                recommendation="",
-                data={"available": True, "error": str(e)},
-            )
+
+        return self._safe_check(
+            "ext_whois",
+            "Domain WHOIS (Age, Expiry, Registrar)",
+            Severity.LOW,
+            _run,
+        )
 
     def _check_wappalyzer(self, crawl_result) -> CheckResult:
         """Detect tech stack using Wappalyzer Python package (local, no API key)."""
-        try:
-            from wappalyzer import Wappalyzer, WebPage
-        except ImportError:
-            return CheckResult(
-                check_id="ext_wappalyzer",
-                check_name="Technology Stack (Wappalyzer)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail="Wappalyzer Python package not installed — check skipped. Install with: pip install wappalyzer",
-                recommendation="",
-                data={"available": False},
-            )
+        def _run():
+            try:
+                from wappalyzer import Wappalyzer, WebPage
+            except ImportError:
+                return CheckResult(
+                    check_id="ext_wappalyzer",
+                    check_name="Technology Stack (Wappalyzer)",
+                    category=self.category_name,
+                    severity=Severity.INFO,
+                    passed=True,
+                    score=100,
+                    detail="Wappalyzer Python package not installed — check skipped. Install with: pip install wappalyzer",
+                    recommendation="",
+                    data={"available": False},
+                )
 
-        try:
             webpage = WebPage.new_from_url(crawl_result.base_url, timeout=15)
             wappalyzer = Wappalyzer.latest()
             technologies = wappalyzer.analyze(webpage)
@@ -495,15 +406,10 @@ class ExternalIntelligenceChecks(CheckCategory):
                     recommendation="",
                     data={"technologies": [], "available": True},
                 )
-        except Exception as e:
-            return CheckResult(
-                check_id="ext_wappalyzer",
-                check_name="Technology Stack (Wappalyzer)",
-                category=self.category_name,
-                severity=Severity.INFO,
-                passed=True,
-                score=100,
-                detail=f"Wappalyzer error: {e}",
-                recommendation="",
-                data={"available": True, "error": str(e)},
-            )
+
+        return self._safe_check(
+            "ext_wappalyzer",
+            "Technology Stack (Wappalyzer)",
+            Severity.INFO,
+            _run,
+        )
