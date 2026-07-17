@@ -36,6 +36,10 @@ def main():
     print(f"    Coverage Score: {score_data.get('coverage_score', 0.0)}")
     print(f"    Confidence Score: {score_data.get('confidence_score', 0.0)}")
     print(f"    Opportunity Score: {score_data.get('opportunity_score', 0.0)}")
+    if score_data.get('site_blocked'):
+        print(f"    ⚠️  Site was blocked by bot protection — grade reflects limited data")
+    elif score_data.get('blocked_pages', 0) > 0:
+        print(f"    ⚠️  {score_data['blocked_pages']}/{score_data['total_pages']} pages blocked by bot protection")
 
 
     # Print crawl audit coverage metadata

@@ -11,6 +11,7 @@ def _load_categories():
     from checks.security import SecurityChecks
     from checks.accessibility import AccessibilityChecks
     from checks.conversion import ConversionChecks
+    from checks.external_intelligence import ExternalIntelligenceChecks
     return [
         TechnicalChecks,
         PerformanceChecks,
@@ -19,4 +20,5 @@ def _load_categories():
         SecurityChecks,
         AccessibilityChecks,
         ConversionChecks,
+        ExternalIntelligenceChecks,
     ]

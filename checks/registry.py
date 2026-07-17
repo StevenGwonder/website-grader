@@ -556,7 +556,59 @@ RULE_REGISTRY: Dict[str, RuleMetadata] = {
         applicability={"site_types": ["*"], "page_types": ["*"]},
         recommendation_template="Include a contact form to capture leads.",
         documentation_references=["https://www.w3.org/WAI/tutorials/forms/"]
-    )
+    ),
+
+    # External Intelligence
+    "ext_mozilla_observatory": RuleMetadata(
+        check_id="ext_mozilla_observatory",
+        name="Mozilla Observatory (Security Headers)",
+        category="External Intelligence",
+        default_weight=10,
+        default_severity="info",
+        applicability={"site_types": ["*"], "page_types": ["*"]},
+        recommendation_template="Improve security headers to protect against common web vulnerabilities.",
+        documentation_references=["https://observatory.mozilla.org/"]
+    ),
+    "ext_crt_sh": RuleMetadata(
+        check_id="ext_crt_sh",
+        name="SSL Certificate History (crt.sh)",
+        category="External Intelligence",
+        default_weight=5,
+        default_severity="info",
+        applicability={"site_types": ["*"], "page_types": ["*"]},
+        recommendation_template="Ensure SSL certificates are valid and not expired.",
+        documentation_references=["https://crt.sh/"]
+    ),
+    "ext_hsts_preload": RuleMetadata(
+        check_id="ext_hsts_preload",
+        name="HSTS Preload List",
+        category="External Intelligence",
+        default_weight=5,
+        default_severity="info",
+        applicability={"site_types": ["*"], "page_types": ["*"]},
+        recommendation_template="Submit domain to HSTS Preload for automatic HTTPS enforcement.",
+        documentation_references=["https://hstspreload.org/"]
+    ),
+    "ext_whatweb": RuleMetadata(
+        check_id="ext_whatweb",
+        name="Technology Stack (WhatWeb)",
+        category="External Intelligence",
+        default_weight=5,
+        default_severity="info",
+        applicability={"site_types": ["*"], "page_types": ["*"]},
+        recommendation_template="Install WhatWeb CLI for technology stack detection.",
+        documentation_references=["https://github.com/urbanadventurer/WhatWeb"]
+    ),
+    "ext_wappalyzer": RuleMetadata(
+        check_id="ext_wappalyzer",
+        name="Technology Stack (Wappalyzer)",
+        category="External Intelligence",
+        default_weight=5,
+        default_severity="info",
+        applicability={"site_types": ["*"], "page_types": ["*"]},
+        recommendation_template="Install Wappalyzer Python package for technology stack detection.",
+        documentation_references=["https://github.com/aliasio/wappalyzer"]
+    ),
 }
 
 def get_rule_metadata(check_id: str) -> Optional[RuleMetadata]:

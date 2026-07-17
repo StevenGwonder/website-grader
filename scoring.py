@@ -8,7 +8,8 @@ CATEGORY_WEIGHTS = {
     "Content Quality": 15,
     "Security": 10,
     "Accessibility": 10,
-    "Social & Conversion": 5
+    "Social & Conversion": 5,
+    "External Intelligence": 5
 }
 
 SEVERITY_WEIGHTS = {
@@ -22,13 +23,25 @@ SEVERITY_WEIGHTS = {
 def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[str, Any]:
     from models import FindingStatus
     
+    # Check if the site was blocked by Cloudflare/bot protection
+    site_blocked = False
+    blocked_pages = 0
+    total_pages = 0
+    if crawl_result and hasattr(crawl_result, "pages"):
+        total_pages = len(crawl_result.pages)
+        for page in crawl_result.pages.values():
+            if getattr(page, "blocked", False):
+                blocked_pages += 1
+        if total_pages > 0 and blocked_pages >= total_pages:
+            site_blocked = True
+    
     categories = {}
     for cat, weight in CATEGORY_WEIGHTS.items():
         cat_results = [r for r in results if r.category == cat]
         if not cat_results:
             continue
 
-        cat_applicable = [r for r in cat_results if r.status not in (FindingStatus.NOT_APPLICABLE, FindingStatus.INFORMATIONAL, FindingStatus.ERROR)]
+        cat_applicable = [r for r in cat_results if r.status not in (FindingStatus.NOT_APPLICABLE, FindingStatus.INFORMATIONAL, FindingStatus.ERROR, FindingStatus.UNVERIFIED)]
         
         passed = sum(1 for r in cat_results if r.passed)
         
@@ -95,6 +108,11 @@ def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[
         for status in integrations.values():
             if status == "unavailable":
                 coverage_score -= 10.0
+
+    # Reduce coverage for blocked pages
+    if blocked_pages > 0 and total_pages > 0:
+        blocked_ratio = blocked_pages / total_pages
+        coverage_score -= blocked_ratio * 30.0  # Up to 30 point penalty for fully blocked
             
     coverage_score = max(0.0, min(100.0, coverage_score))
 
@@ -110,7 +128,7 @@ def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[
             
     unsupported_failures = 0
     for r in results:
-        if r.status not in (FindingStatus.NOT_APPLICABLE, FindingStatus.INFORMATIONAL, FindingStatus.ERROR):
+        if r.status not in (FindingStatus.NOT_APPLICABLE, FindingStatus.INFORMATIONAL, FindingStatus.ERROR, FindingStatus.UNVERIFIED):
             if r.status in (FindingStatus.FAIL, FindingStatus.WARNING):
                 if not getattr(r, "evidence", None):
                     unsupported_failures += 1
@@ -119,13 +137,18 @@ def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[
         
     if crawl_result and not getattr(crawl_result, "overrides", None):
         confidence_score -= 5.0
+
+    # Reduce confidence for blocked pages
+    if blocked_pages > 0 and total_pages > 0:
+        blocked_ratio = blocked_pages / total_pages
+        confidence_score -= blocked_ratio * 20.0  # Up to 20 point penalty for fully blocked
         
     confidence_score = max(0.0, min(100.0, confidence_score))
 
     total_opt = 0
     max_opt = 0
     for r in results:
-        if r.status not in (FindingStatus.NOT_APPLICABLE, FindingStatus.INFORMATIONAL, FindingStatus.ERROR):
+        if r.status not in (FindingStatus.NOT_APPLICABLE, FindingStatus.INFORMATIONAL, FindingStatus.ERROR, FindingStatus.UNVERIFIED):
             sev_w = SEVERITY_WEIGHTS.get(r.severity, 1.0)
             ease_str = getattr(r, "fix_difficulty", "Easy") or "Easy"
             if "easy" in ease_str.lower():
@@ -151,7 +174,10 @@ def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[
         "confidence_score": round(confidence_score, 1),
         "opportunity_score": round(opportunity_score, 1),
         "grade": grade,
-        "categories": categories
+        "categories": categories,
+        "blocked_pages": blocked_pages,
+        "total_pages": total_pages,
+        "site_blocked": site_blocked,
     }
 
 

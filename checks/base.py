@@ -225,6 +225,16 @@ class CheckCategory:
                         else crawl_result.base_url if crawl_result
                         else None
                     )
+                    
+                    # If the page was blocked by Cloudflare/bot protection, override to UNVERIFIED
+                    if page_data and getattr(page_data, "blocked", False):
+                        res.passed = True
+                        res.score = 100
+                        res.status = FindingStatus.UNVERIFIED
+                        res.detail = f"UNVERIFIED — page was blocked by bot protection (Cloudflare or similar). Could not access content."
+                        res.recommendation = ""
+                        return res
+                    
                     if fallback_url and res.evidence:
                         for ev in res.evidence:
                             if ev.page_url == "https://example.com":

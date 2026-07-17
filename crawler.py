@@ -10,6 +10,55 @@ from curl_cffi import requests as req
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 
+# Cloudflare challenge detection patterns
+CLOUDFLARE_BODY_PATTERNS = [
+    r'cf-browser-verification',
+    r'challenge-platform',
+    r'cf_chl_opt',
+    r'/_cf_chl_',
+    r'cdn-cgi/challenge-platform',
+    r'just a moment\.\.\.',
+    r'Checking your browser',
+    r'DDoS protection by',
+    r'Attention Required!.*Cloudflare',
+    r'Cloudflare Ray ID:',
+]
+
+CLOUDFLARE_HEADER_PATTERNS = [
+    'cf-ray',
+    'cf-chl-bypass',
+]
+
+# Browser impersonation rotation for retry
+IMPERSONATION_ROTATION = [
+    "chrome",
+    "chrome110",
+    "safari15_5",
+    "edge99",
+    "firefox109",
+]
+
+def is_cloudflare_challenge(status_code: int, headers: dict, html: str) -> bool:
+    """Detect if a response is a Cloudflare challenge/block page."""
+    # Check headers
+    for h in CLOUDFLARE_HEADER_PATTERNS:
+        if h in {k.lower() for k in headers}:
+            return True
+
+    # Check body for challenge patterns
+    if html:
+        html_lower = html.lower()
+        for pattern in CLOUDFLARE_BODY_PATTERNS:
+            if re.search(pattern, html_lower):
+                return True
+
+    # Check status code with body length heuristic
+    if status_code in (403, 503) and html and len(html) < 50000:
+        if 'cloudflare' in html.lower() or 'cf-' in html.lower():
+            return True
+
+    return False
+
 PRIORITY_PATHS = [
     re.compile(r'/about'),
     re.compile(r'/contact'),
@@ -147,6 +196,7 @@ class PageData:
     redirect_type: Optional[str] = None
     raw_content: bytes = b""
     content_hash: str = ""
+    blocked: bool = False  # True if Cloudflare/bot-blocking prevented access
     # Rendering results
     rendered_html: Optional[str] = None
     console_logs: List[str] = field(default_factory=list)
@@ -171,6 +221,7 @@ class CrawlResult:
     excluded_urls: Set[str] = field(default_factory=set)
     fetch_failures: Dict[str, str] = field(default_factory=dict)
     robots_parser: Optional[RobotsParser] = None
+    blocked: bool = False  # True if site was blocked by Cloudflare/bot protection
 
     def __post_init__(self):
         self.base_domain = urlparse(self.base_url).netloc
@@ -250,17 +301,70 @@ def _fetch_page(url: str, timeout: int = 15, session=None, max_redirects: int = 
                 if not isinstance(resp_text, str):
                     resp_text = ""
 
+                resp_headers = dict(getattr(resp, "headers", {}) or {})
+                
+                # Check for Cloudflare challenge
+                blocked = is_cloudflare_challenge(status, resp_headers, resp_text)
+                
+                # If blocked, try retry with different impersonation
+                if blocked and session is None:
+                    for impersonation in IMPERSONATION_ROTATION[1:]:  # Skip first (already tried)
+                        try:
+                            retry_resp = req.get(current_url, timeout=timeout, impersonate=impersonation, allow_redirects=False, headers=headers)
+                            retry_status = retry_resp.status_code
+                            retry_text = getattr(retry_resp, "text", "") or ""
+                            retry_headers = dict(getattr(retry_resp, "headers", {}) or {})
+                            if not is_cloudflare_challenge(retry_status, retry_headers, retry_text):
+                                # Retry succeeded
+                                resp = retry_resp
+                                status = retry_status
+                                resp_text = retry_text
+                                resp_headers = retry_headers
+                                raw_bytes = getattr(resp, "content", None)
+                                if not isinstance(raw_bytes, (bytes, bytearray)):
+                                    raw_bytes = resp_text.encode("utf-8")
+                                content_hash = hashlib.sha256(raw_bytes).hexdigest()
+                                blocked = False
+                                break
+                        except Exception:
+                            continue
+
+                # If still blocked, try cloudscraper as fallback
+                if blocked and session is None:
+                    try:
+                        import cloudscraper
+                        scraper = cloudscraper.create_scraper()
+                        cs_resp = scraper.get(current_url, timeout=timeout, allow_redirects=False, headers=headers)
+                        cs_status = cs_resp.status_code
+                        cs_text = getattr(cs_resp, "text", "") or ""
+                        cs_headers = dict(getattr(cs_resp, "headers", {}) or {})
+                        if not is_cloudflare_challenge(cs_status, cs_headers, cs_text):
+                            resp = cs_resp
+                            status = cs_status
+                            resp_text = cs_text
+                            resp_headers = cs_headers
+                            raw_bytes = getattr(resp, "content", None)
+                            if not isinstance(raw_bytes, (bytes, bytearray)):
+                                raw_bytes = resp_text.encode("utf-8")
+                            content_hash = hashlib.sha256(raw_bytes).hexdigest()
+                            blocked = False
+                    except ImportError:
+                        pass  # cloudscraper not installed, skip
+                    except Exception:
+                        pass  # cloudscraper failed, keep original blocked state
+
                 return PageData(
                     url=url,
                     html=resp_text,
                     final_url=current_url,
                     status_code=status,
                     ttfb_ms=ttfb_ms,
-                    headers=dict(getattr(resp, "headers", {}) or {}),
+                    headers=resp_headers,
                     redirect_hops=hops,
                     redirect_type=redirect_type,
                     raw_content=raw_bytes,
                     content_hash=content_hash,
+                    blocked=blocked,
                 )
         except Exception as e:
             ttfb_ms = (time.monotonic() - start_time) * 1000
@@ -510,6 +614,13 @@ def crawl_site(url: str, max_pages: int = 5, timeout: int = 15, enable_playwrigh
         return result
     if homepage.status_code >= 400:
         result.fetch_failures[url] = f"HTTP {homepage.status_code}"
+    
+    # Check if homepage was blocked by Cloudflare/bot protection
+    if homepage.blocked:
+        result.blocked = True
+        result.pages[url] = homepage
+        result.crawled_urls.add(url)
+        return result
     
     if enable_playwright:
         render_res = render_page_with_playwright(url, timeout_ms=timeout * 1000)
