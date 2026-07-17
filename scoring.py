@@ -95,19 +95,9 @@ def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[
         
     coverage_score = check_coverage
     if crawl_result:
-        integrations = {
-            "google_search_console": "unavailable",
-            "google_analytics_4": "unavailable",
-            "crux": "unavailable"
-        }
-        if hasattr(crawl_result, "external_integrations"):
-            integrations = crawl_result.external_integrations
-        elif hasattr(crawl_result, "metadata") and "external_integrations" in crawl_result.metadata:
-            integrations = crawl_result.metadata["external_integrations"]
-            
-        for status in integrations.values():
-            if status == "unavailable":
-                coverage_score -= 10.0
+        # All external integrations are unavailable in the free tier
+        # Single -10 penalty for no integrations, not -30
+        coverage_score -= 10.0
 
     # Reduce coverage for blocked pages
     if blocked_pages > 0 and total_pages > 0:
@@ -118,14 +108,7 @@ def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[
 
 
     confidence_score = 100.0
-    disparity_count = 0
-    if crawl_result and hasattr(crawl_result, "pages"):
-        for page in crawl_result.pages.values():
-            if getattr(page, "raw_vs_rendered_disparities", None):
-                disparity_count += 1
-        if disparity_count > 0:
-            confidence_score -= min(15.0, disparity_count * 5.0)
-            
+
     unsupported_failures = 0
     for r in results:
         if r.status not in (FindingStatus.NOT_APPLICABLE, FindingStatus.INFORMATIONAL, FindingStatus.ERROR, FindingStatus.UNVERIFIED):
@@ -134,9 +117,6 @@ def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[
                     unsupported_failures += 1
     if unsupported_failures > 0:
         confidence_score -= min(15.0, unsupported_failures * 3.0)
-        
-    if crawl_result and not getattr(crawl_result, "overrides", None):
-        confidence_score -= 5.0
 
     # Reduce confidence for blocked pages
     if blocked_pages > 0 and total_pages > 0:
@@ -191,41 +171,4 @@ def score_to_grade(score: float) -> str:
     if score >= 60:
         return "D"
     return "F"
-
-def deduplicate_findings(findings: list) -> list:
-    from models import FindingStatus
-    grouped = {}
-    for f in findings:
-        if f.status in (FindingStatus.PASS, FindingStatus.INFORMATIONAL, FindingStatus.NOT_APPLICABLE):
-            key = (f.check_id, id(f))
-        else:
-            selector = None
-            if f.evidence:
-                selector = f.evidence[0].selector
-            key = (f.check_id, f.observation, selector)
-            
-        if key not in grouped:
-            grouped[key] = []
-        grouped[key].append(f)
-        
-    deduplicated = []
-    for key, items in grouped.items():
-        if len(items) == 1:
-            deduplicated.append(items[0])
-        else:
-            base = items[0]
-            combined_evidence = []
-            seen_evidence = set()
-            for item in items:
-                for ev in item.evidence:
-                    ev_key = (ev.page_url, ev.selector, str(ev.observed_value))
-                    if ev_key not in seen_evidence:
-                        seen_evidence.add(ev_key)
-                        combined_evidence.append(ev)
-            base.evidence = combined_evidence
-            base.scope = "site"
-            base.observation = f"{base.observation} (Found on {len(items)} pages)"
-            deduplicated.append(base)
-            
-    return deduplicated
 
