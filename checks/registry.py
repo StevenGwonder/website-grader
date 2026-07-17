@@ -609,6 +609,16 @@ RULE_REGISTRY: Dict[str, RuleMetadata] = {
         recommendation_template="Install Wappalyzer Python package for technology stack detection.",
         documentation_references=["https://github.com/aliasio/wappalyzer"]
     ),
+    "ext_whois": RuleMetadata(
+        check_id="ext_whois",
+        name="Domain WHOIS (Age, Expiry, Registrar)",
+        category="External Intelligence",
+        default_weight=5,
+        default_severity="info",
+        applicability={"site_types": ["*"], "page_types": ["*"]},
+        recommendation_template="Check domain registration and renewal status.",
+        documentation_references=["https://github.com/DannyCork/python-whois"]
+    ),
 }
 
 def get_rule_metadata(check_id: str) -> Optional[RuleMetadata]:

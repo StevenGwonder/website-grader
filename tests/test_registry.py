@@ -16,7 +16,7 @@ def test_rule_registry_lookup():
 
 def test_registry_size():
     # Make sure we registered all 53 checks
-    assert len(RULE_REGISTRY) == 58  # 53 original + 5 External Intelligence
+    assert len(RULE_REGISTRY) == 59  # 53 original + 6 External Intelligence
 
 def test_all_implemented_checks_registered():
     from checks import _load_categories

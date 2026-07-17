@@ -2,6 +2,7 @@
 import json
 import re
 from urllib.parse import urlparse
+from datetime import datetime, timezone
 from curl_cffi import requests as req
 from .base import CheckResult, Severity, CheckCategory
 
@@ -20,6 +21,7 @@ class ExternalIntelligenceChecks(CheckCategory):
         results.append(self._check_hsts_preload(domain))
         results.append(self._check_whatweb(crawl_result))
         results.append(self._check_wappalyzer(crawl_result))
+        results.append(self._check_whois(domain))
         return results
 
     def _check_mozilla_observatory(self, domain: str) -> CheckResult:
@@ -316,6 +318,115 @@ class ExternalIntelligenceChecks(CheckCategory):
                 passed=True,
                 score=100,
                 detail=f"WhatWeb error: {e}",
+                recommendation="",
+                data={"available": True, "error": str(e)},
+            )
+
+    def _check_whois(self, domain: str) -> CheckResult:
+        """Check domain registration details via WHOIS (local, no API key)."""
+        try:
+            import whois
+        except ImportError:
+            return CheckResult(
+                check_id="ext_whois",
+                check_name="Domain WHOIS (Age, Expiry, Registrar)",
+                category=self.category_name,
+                severity=Severity.INFO,
+                passed=True,
+                score=100,
+                detail="python-whois package not installed — check skipped. Install with: pip install python-whois",
+                recommendation="",
+                data={"available": False},
+            )
+
+        try:
+            clean_domain = domain.split(":")[0]
+            w = whois.whois(clean_domain)
+
+            registrar = w.registrar or "Unknown"
+            creation_date = w.creation_date
+            expiration_date = w.expiration_date
+            name_servers = w.name_servers or []
+
+            # Handle list or single value for dates
+            if isinstance(creation_date, list):
+                creation_date = creation_date[0] if creation_date else None
+            if isinstance(expiration_date, list):
+                expiration_date = expiration_date[0] if expiration_date else None
+
+            now = datetime.now(timezone.utc)
+
+            # Calculate domain age in years
+            age_years = None
+            if creation_date:
+                if creation_date.tzinfo is None:
+                    creation_date = creation_date.replace(tzinfo=timezone.utc)
+                age_days = (now - creation_date).days
+                age_years = round(age_days / 365.25, 1)
+
+            # Check if domain is expiring soon
+            days_to_expiry = None
+            if expiration_date:
+                if expiration_date.tzinfo is None:
+                    expiration_date = expiration_date.replace(tzinfo=timezone.utc)
+                days_to_expiry = (expiration_date - now).days
+
+            # Build detail string
+            parts = []
+            if age_years is not None:
+                parts.append(f"Registered {age_years} years ago")
+            if days_to_expiry is not None:
+                if days_to_expiry < 0:
+                    parts.append(f"EXPIRED {abs(days_to_expiry)} days ago")
+                elif days_to_expiry < 30:
+                    parts.append(f"⚠️ Expires in {days_to_expiry} days")
+                elif days_to_expiry < 90:
+                    parts.append(f"Expires in {days_to_expiry} days")
+                else:
+                    parts.append(f"Expires in {days_to_expiry} days")
+            parts.append(f"Registrar: {registrar}")
+            if name_servers:
+                parts.append(f"NS: {', '.join(name_servers[:3])}")
+
+            detail = " | ".join(parts)
+
+            # Pass if domain exists and isn't expired
+            passed = days_to_expiry is None or days_to_expiry > 0
+
+            recommendation = ""
+            if days_to_expiry is not None and days_to_expiry < 30 and days_to_expiry >= 0:
+                recommendation = f"Your domain expires in {days_to_expiry} days. Renew immediately to avoid losing your domain."
+            elif days_to_expiry is not None and days_to_expiry < 0:
+                recommendation = f"Your domain expired {abs(days_to_expiry)} days ago! Renew immediately."
+            elif age_years is not None and age_years < 1:
+                recommendation = "Your domain is less than a year old. New domains may have lower trust signals for search engines."
+
+            return CheckResult(
+                check_id="ext_whois",
+                check_name="Domain WHOIS (Age, Expiry, Registrar)",
+                category=self.category_name,
+                severity=Severity.LOW,
+                passed=passed,
+                score=100 if passed else 0,
+                detail=detail,
+                recommendation=recommendation,
+                data={
+                    "registrar": registrar,
+                    "age_years": age_years,
+                    "days_to_expiry": days_to_expiry,
+                    "name_servers": name_servers[:5] if name_servers else [],
+                    "available": True,
+                },
+            )
+        except Exception as e:
+            return CheckResult(
+                check_id="ext_whois",
+                check_name="Domain WHOIS (Age, Expiry, Registrar)",
+                category=self.category_name,
+                severity=Severity.INFO,
+                passed=True,
+                score=100,
+                detail=f"WHOIS lookup unavailable: {e}",
                 recommendation="",
                 data={"available": True, "error": str(e)},
             )
