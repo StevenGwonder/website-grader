@@ -23,7 +23,7 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 resend.api_key = RESEND_API_KEY
 
 # ─── Storage for email captures ──────────────────────────────────
-EMAILS_FILE = "emails.json"
+EMAILS_FILE = "data/emails.json"
 AUDIENCE_ID = os.environ.get("RESEND_AUDIENCE_ID", "")
 
 def save_email(email, url, score):
