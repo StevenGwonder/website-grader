@@ -1,7 +1,8 @@
-flask>=3.0
-requests>=2.31
-beautifulsoup4>=4.12
-curl_cffi>=0.7
-cloudscraper>=1.2
-wappalyzer>=2.0
-python-whois>=0.9
+|flask>=3.0
+|requests>=2.31
+|beautifulsoup4>=4.12
+|curl_cffi>=0.7
+|cloudscraper>=1.2
+|wappalyzer>=2.0
+|python-whois>=0.9
+|resend>=4.0

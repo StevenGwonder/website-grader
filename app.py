@@ -14,14 +14,21 @@ from datetime import datetime
 from flask import Flask, request, jsonify
 import requests as req
 from bs4 import BeautifulSoup
+import resend
 
 app = Flask(__name__)
 
-# ─── Storage for email captures ──────────────────────────────────────
+# ─── Resend Configuration ─────────────────────────────────────────
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+resend.api_key = RESEND_API_KEY
+
+# ─── Storage for email captures ──────────────────────────────────
 EMAILS_FILE = "emails.json"
+AUDIENCE_ID = os.environ.get("RESEND_AUDIENCE_ID", "")
 
 def save_email(email, url, score):
-    """Save email capture to JSON file."""
+    """Save email capture to Resend Contacts API + local JSON fallback."""
+    # Always save locally as a fallback
     data = []
     if os.path.exists(EMAILS_FILE):
         with open(EMAILS_FILE) as f:
@@ -37,6 +44,19 @@ def save_email(email, url, score):
     })
     with open(EMAILS_FILE, "w") as f:
         json.dump(data, f, indent=2)
+
+    # Push to Resend Contacts if configured
+    if RESEND_API_KEY and AUDIENCE_ID:
+        try:
+            resend.Contacts.create({
+                "audience_id": AUDIENCE_ID,
+                "email": email,
+                "first_name": "",
+                "last_name": "",
+                "unsubscribed": False,
+            })
+        except Exception as e:
+            print(f"Resend contact save failed (non-fatal): {e}")
 
 # ─── Website Grading Engine ──────────────────────────────────────────
 
