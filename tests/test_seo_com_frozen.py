@@ -52,7 +52,7 @@ def test_frozen_seo_com_audit():
         # The baseline score of seo.com under the legacy audit engine is 53, but with sitemap and 403 external link fixes, it rises to 55.
         # With Phase 3 contextual severity and scoring, it remains 55.
         # With multi-page scanning + granular social_links scoring (min(100, platforms*25)), overall drops to 54.
-        assert score_data["overall_score"] == 56
+        assert score_data["overall_score"] == 54
         assert score_data["grade"] == "F"
         
         # Verify specific category scores match the legacy audit report (updated for Phase 3)
