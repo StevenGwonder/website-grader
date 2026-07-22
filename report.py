@@ -91,7 +91,25 @@ WHY_MAP = {
     "conversion_analytics": "Tracking tags (GA4, Tag Manager, Facebook Pixel) provide visitor flow data, allowing you to measure conversion rates and optimize ad campaigns.",
     "conversion_cta_elements": "Clear call-to-action buttons (e.g., 'Book a Call', 'Request Quote') guide visitors through conversion flows, transforming passive readers into active sales leads.",
     "conversion_trust_signals": "Trust badges, certifications, professional accreditations, and license numbers address buyer anxiety and increase form conversion rates.",
-    "conversion_contact_form": "On-page contact forms lower the effort required to contact you, maximizing lead capture volume compared to simple email links."
+    "conversion_contact_form": "On-page contact forms lower the effort required to contact you, maximizing lead capture volume compared to simple email links.",
+
+    "alt_text": "Alternative text describes graphics to visually impaired users and screen-readers. Alt tags also index images for search engines, capturing image search traffic.",
+    "form_labels": "Every input field must have an associated text label tag. Labels guide screen readers, assist autofill features, and improve conversion flow.",
+    "heading_order": "A clean H1->H2->H3 heading sequence provides a logical reading flow, helping assistive readers parse page layout.",
+    "aria_labels": "ARIA labels clarify interactive button actions that contain only graphics, allowing screen readers and autonomous bots to parse button functions.",
+    "skip_nav": "A skip navigation link allows keyboard-only users to bypass navigation menus and jump directly to main content, fulfilling key WCAG requirements.",
+
+    "social_links": "Social media links connect users to your active social pages, building brand authority, and encouraging customer review research.",
+    "analytics": "Tracking tags (GA4, Tag Manager, Facebook Pixel) provide visitor flow data, allowing you to measure conversion rates and optimize ad campaigns.",
+    "cta_elements": "Clear call-to-action buttons (e.g., 'Book a Call', 'Request Quote') guide visitors through conversion flows, transforming passive readers into active sales leads.",
+    "trust_signals": "Trust badges, certifications, professional accreditations, and license numbers address buyer anxiety and increase form conversion rates.",
+    "contact_form": "On-page contact forms lower the effort required to contact you, maximizing lead capture volume compared to simple email links.",
+
+    "ext_mozilla_observatory": "Mozilla Observatory independently scans your site's security headers and provides a third-party security rating, validating your server-side defense posture.",
+    "ext_crt_sh": "Certificate Transparency logs (crt.sh) provide an independent record of all SSL certificates issued for your domain, helping detect unauthorized certificate issuance.",
+    "ext_hsts_preload": "HSTS Preload submission ensures browsers always connect to your site over HTTPS, preventing downgrade attacks and SSL stripping on first visit.",
+    "ext_whois": "WHOIS data reveals domain registration age, registrar, and expiry date. Older domains with clean registration history tend to rank higher in search results.",
+    "ext_wappalyzer": "Technology stack detection identifies the frameworks, CMS, and analytics tools your site uses, helping assess technical debt and upgrade paths.",
 }
 
 def _score_color(score):
@@ -145,11 +163,21 @@ def _check_row(r):
     
     fix_section = ""
     if not r.passed:
+        # Add "Learn more" links from registry documentation_references
+        from checks.registry import get_rule_metadata
+        meta = get_rule_metadata(r.check_id)
+        learn_more_links = ""
+        if meta and meta.documentation_references:
+            learn_more_links = '<div class="check-section" style="margin-top:8px;">' + \
+                '<span class="section-title" style="color:var(--blue);">📖 Learn More</span>' + \
+                ''.join(f'<a href="{ref}" target="_blank" style="display:inline-block;margin-right:12px;font-size:0.85em;color:var(--blue);text-decoration:underline;">{ref.split("//")[-1].split("/")[0] if "//" in ref else ref}</a>' for ref in meta.documentation_references) + \
+                '</div>'
         fix_section = f"""
         <div class="check-section check-how">
           <span class="section-title">🛠️ How to Fix (Recommendation)</span>
           <span class="section-val">{r.recommendation or 'Implement programmatic corrections in accordance with standard web layouts.'}</span>
         </div>
+        {learn_more_links}
         """
         
     code_section = ""
@@ -324,7 +352,7 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
             "health_score": score_data.get("health_score", float(score)),
             "coverage_score": score_data.get("coverage_score", 100.0),
             "confidence_score": score_data.get("confidence_score", 100.0),
-            "opportunity_score": score_data.get("opportunity_score", 0.0),
+            "improvement_potential": score_data.get("improvement_potential", 0.0),
             "checks_summary": {
                 "total": total_count,
                 "passed": passed_count,
@@ -1206,6 +1234,10 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
           <span>Passed: <strong>{PASSED_COUNT}</strong></span>
           <span>Failed: <strong>{FAILED_COUNT}</strong></span>
         </div>
+        <div class="quick-stats" style="border-top: none; padding-top: 4px; font-size: 0.75em;">
+          <span>Coverage: <strong>{COVERAGE_SCORE}%</strong></span>
+          <span>Confidence: <strong>{CONFIDENCE_SCORE}%</strong></span>
+        </div>
       </div>
       
       <div class="breakdown-card">
@@ -1463,6 +1495,8 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
         "{FAILED_COUNT}": str(failed_count),
         "{HIGH_FAILED_COUNT}": str(high_failed_count),
         "{TOTAL_COUNT}": str(total_count),
+        "{COVERAGE_SCORE}": str(score_data.get("coverage_score", "N/A")),
+        "{CONFIDENCE_SCORE}": str(score_data.get("confidence_score", "N/A")),
         "{DATE}": date,
         "{GCOLOR}": gcolor,
         "{SCOLOR}": scolor,

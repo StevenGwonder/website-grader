@@ -226,12 +226,12 @@ class CheckCategory:
                         else None
                     )
                     
-                    # If the page was blocked by Cloudflare/bot protection, override to UNVERIFIED
+                    # If the page was blocked by Cloudflare/bot protection, mark as NOT_APPLICABLE
                     if page_data and getattr(page_data, "blocked", False):
-                        res.passed = True
-                        res.score = 100
-                        res.status = FindingStatus.UNVERIFIED
-                        res.detail = f"UNVERIFIED — page was blocked by bot protection (Cloudflare or similar). Could not access content."
+                        res.passed = False
+                        res.score = 0
+                        res.status = FindingStatus.NOT_APPLICABLE
+                        res.detail = f"NOT_APPLICABLE — page was blocked by bot protection (Cloudflare or similar). Could not access content."
                         res.recommendation = ""
                         return res
                     

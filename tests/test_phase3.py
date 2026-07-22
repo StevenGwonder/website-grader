@@ -124,4 +124,4 @@ def test_four_pillar_scoring():
     assert score_data["overall_score"] == 50
     assert score_data["coverage_score"] > 0.0
     assert score_data["confidence_score"] > 0.0
-    assert score_data["opportunity_score"] > 0.0
+    assert score_data["improvement_potential"] > 0.0

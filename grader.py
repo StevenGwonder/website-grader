@@ -35,7 +35,7 @@ def main():
     print(f"    Health Score: {score_data.get('health_score', 0.0)}")
     print(f"    Coverage Score: {score_data.get('coverage_score', 0.0)}")
     print(f"    Confidence Score: {score_data.get('confidence_score', 0.0)}")
-    print(f"    Opportunity Score: {score_data.get('opportunity_score', 0.0)}")
+    print(f"    Improvement Potential: {score_data.get('improvement_potential', 0.0)}")
     if score_data.get('site_blocked'):
         print(f"    ⚠️  Site was blocked by bot protection — grade reflects limited data")
     elif score_data.get('blocked_pages', 0) > 0:

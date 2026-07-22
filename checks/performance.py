@@ -41,7 +41,7 @@ class PerformanceChecks(CheckCategory):
             passed=passed,
             score=score,
             detail=f"TTFB: {ttfb:.0f}ms",
-            recommendation="Reduce server response time to improve TTFB.",
+            recommendation="Reduce server response time to improve TTFB. Use a CDN (Cloudflare, Fastly), enable server-side caching (Redis/Varnish), and upgrade to a faster hosting plan if TTFB exceeds 600ms.",
             fix_difficulty="Medium (server config)",
         )
 
@@ -64,7 +64,7 @@ class PerformanceChecks(CheckCategory):
             passed=passed,
             score=score,
             detail=f"Page weight: {size_kb:.1f}KB ({size_mb:.2f}MB)",
-            recommendation="Optimize images, minify CSS/JS, and reduce unnecessary content.",
+            recommendation="Optimize images (convert to WebP, compress with TinyPNG), minify CSS/JS (use terser/cssnano), and remove unused JavaScript and CSS to reduce page weight below 1.5MB.",
         )
 
     def _check_compression(self, page) -> CheckResult:

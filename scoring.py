@@ -8,7 +8,7 @@ CATEGORY_WEIGHTS = {
     "Content Quality": 15,
     "Security": 10,
     "Accessibility": 10,
-    "Social & Conversion": 5,
+    "Social & Conversion": 10,  # ponytail: bumped from 5% for lead gen focus
     "External Intelligence": 5
 }
 
@@ -152,7 +152,7 @@ def compute_score(results: List[CheckResult], crawl_result: Any = None) -> Dict[
         "health_score": round(overall_health, 1),
         "coverage_score": round(coverage_score, 1),
         "confidence_score": round(confidence_score, 1),
-        "opportunity_score": round(opportunity_score, 1),
+        "improvement_potential": round(opportunity_score, 1),  # ponytail: renamed from opportunity_score
         "grade": grade,
         "categories": categories,
         "blocked_pages": blocked_pages,

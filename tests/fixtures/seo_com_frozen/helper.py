@@ -96,7 +96,6 @@ def mock_network():
     patches = [
         patch("crawler.req.Session", return_value=session_mock),
         patch("crawler.req.get", side_effect=mock_engine.handle_get),
-        patch("checks.technical.req.head", side_effect=mock_engine.handle_head),
         patch("checks.technical.req.get", side_effect=mock_engine.handle_get),
     ]
     return patches

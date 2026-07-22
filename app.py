@@ -16,6 +16,11 @@ import requests as req
 from bs4 import BeautifulSoup
 import resend
 
+# Full engine imports  # ponytail: wire full grader into app.py
+from crawler import crawl_site
+from checks import _load_categories
+from scoring import compute_score
+
 app = Flask(__name__)
 
 # ─── Resend Configuration ─────────────────────────────────────────
@@ -420,8 +425,8 @@ def render_result(report):
     </div>
     {recs_html}
     <div class="email-capture">
-        <h3>Want a detailed PDF report?</h3>
-        <p>Enter your email and we'll send a full breakdown with fix instructions.</p>
+        <h3>Save your results for later</h3>
+        <p>Enter your email and we'll save your report so you can access it anytime.</p>
         <form action="/capture" method="post">
             <input type="email" name="email" placeholder="your@email.com" required>
             <input type="hidden" name="url" value="{report['url']}">
@@ -446,22 +451,76 @@ def grade():
     url = request.form.get("url", "").strip()
     if not url:
         return HOME_PAGE
-    report = grade_website(url)
-    return render_result(report)
+    # Use full engine  # ponytail
+    try:
+        crawl_result = crawl_site(url, max_pages=3)
+        if crawl_result.error and not crawl_result.pages:
+            report = grade_website(url)
+            return render_result(report)
+        all_results = []
+        for CheckClass in _load_categories():
+            checker = CheckClass()
+            results = checker.run(crawl_result)
+            all_results.extend(results)
+        score_data = compute_score(all_results, crawl_result)
+        # Map to template format
+        checks = []
+        recommendations = []
+        for r in all_results:
+            icon = "✅" if r.passed else "❌"
+            checks.append({"name": r.check_name, "icon": icon, "detail": r.detail})
+            if not r.passed and r.recommendation:
+                recommendations.append({
+                    "title": r.check_name,
+                    "detail": r.recommendation,
+                    "difficulty": r.fix_difficulty or "Medium",
+                    "impact": r.severity.value.upper()
+                })
+        report = {
+            "url": url,
+            "final_url": crawl_result.base_url if crawl_result else url,
+            "error": None,
+            "score": score_data["overall_score"],
+            "grade": score_data["grade"],
+            "summary": f"Score: {score_data['overall_score']}/100 — Grade {score_data['grade']}",
+            "checks": checks,
+            "recommendations": recommendations[:10],
+            "bonus_info": {
+                "title": (crawl_result.homepage.soup.title.string or url).strip() if crawl_result and crawl_result.homepage and crawl_result.homepage.soup and crawl_result.homepage.soup.title else url,
+                "meta_description": "",
+                "word_count": len(crawl_result.homepage.html.split()) if crawl_result and crawl_result.homepage else 0,
+                "has_ssl": crawl_result.base_url.startswith("https://") if crawl_result else False,
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        return render_result(report)
+    except Exception as e:
+        # Fallback to simple grader
+        report = grade_website(url)
+        return render_result(report)
 
 @app.route("/capture", methods=["POST"])
 def capture():
     email = request.form.get("email", "").strip()
     url = request.form.get("url", "")
     score = request.form.get("score", "")
-    if email:
-        save_email(email, url, score)
+    # Basic server-side email validation  # ponytail
+    if not email or not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+        return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invalid Email</title><style>BASE_CSS</style></head><body><div class="gradient-bg"><div class="container">
+    <div class="result-card" style="text-align:center; padding:60px;">
+        <h1 style="font-size:2em;">❌ Invalid Email</h1>
+        <p style="color:#aaa; margin-top:16px; font-size:1.1em;">Please enter a valid email address.</p>
+        <div style="margin-top:30px;"><a href="/" style="color:#6366f1;">← Try again</a></div>
+    </div>
+</div></div></body></html>""".replace("BASE_CSS", BASE_CSS)
+    save_email(email, url, score)
     return f"""
 <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Thanks!</title><style>{BASE_CSS}</style></head><body><div class="gradient-bg"><div class="container">
     <div class="result-card" style="text-align:center; padding:60px;">
         <h1 style="font-size:2em;">✅ Got it!</h1>
-        <p style="color:#aaa; margin-top:16px; font-size:1.1em;">We'll send your detailed report to <strong style="color:#6366f1;">{email}</strong> within 24 hours.</p>
+        <p style="color:#aaa; margin-top:16px; font-size:1.1em;">We saved your report for <strong style="color:#6366f1;">{email}</strong>. You can access it anytime.</p>
         <div style="margin-top:30px;"><a href="/" style="color:#6366f1;">← Grade another website</a></div>
     </div>
 </div></div></body></html>"""
