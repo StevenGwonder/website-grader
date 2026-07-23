@@ -20,6 +20,8 @@ import resend
 from crawler import crawl_site
 from checks import _load_categories
 from scoring import compute_score
+from fixes import generate_fixes
+from report import generate_report
 
 app = Flask(__name__)
 
@@ -425,13 +427,13 @@ def render_result(report):
     </div>
     {recs_html}
     <div class="email-capture">
-        <h3>Save your results for later</h3>
-        <p>Enter your email and we'll save your report so you can access it anytime.</p>
+        <h3>Get your full report by email</h3>
+        <p>Enter your email and we'll send you the complete audit report instantly.</p>
         <form action="/capture" method="post">
             <input type="email" name="email" placeholder="your@email.com" required>
             <input type="hidden" name="url" value="{report['url']}">
             <input type="hidden" name="score" value="{score}">
-            <button type="submit">Send Me the Report →</button>
+            <button type="submit">Send me the report →</button>
         </form>
     </div>
     <div style="text-align:center; margin-top:30px;">
@@ -515,12 +517,47 @@ def capture():
     </div>
 </div></div></body></html>""".replace("BASE_CSS", BASE_CSS)
     save_email(email, url, score)
+
+    # Generate full HTML report and send via Resend
+    sent_via_resend = False
+    try:
+        crawl_result = crawl_site(url, max_pages=3)
+        if crawl_result and crawl_result.pages:
+            all_results = []
+            for CheckClass in _load_categories():
+                checker = CheckClass()
+                results = checker.run(crawl_result)
+                all_results.extend(results)
+            score_data = compute_score(all_results, crawl_result)
+            fixes = generate_fixes(crawl_result, all_results)
+            html_report = generate_report(crawl_result, all_results, score_data, fixes, url)
+            intro = f"<p style='font-size:1.1em;margin-bottom:20px;'>Here's your full website audit for <strong>{url}</strong></p>"
+            email_body = f"<!DOCTYPE html><html><body>{intro}{html_report}</body></html>"
+
+            if RESEND_API_KEY:
+                try:
+                    resend.Emails.send({
+                        "from": "Website Grader <onboarding@resend.dev>",
+                        "to": [email],
+                        "subject": f"Website Audit Report: {url}",
+                        "html": email_body,
+                    })
+                    sent_via_resend = True
+                except Exception as e:
+                    print(f"Resend email send failed (non-fatal): {e}")
+    except Exception as e:
+        print(f"Report generation failed (non-fatal): {e}")
+
+    if sent_via_resend:
+        msg = f"We sent your full report to <strong style='color:#6366f1;'>{email}</strong>. Check your inbox!"
+    else:
+        msg = f"We saved your report for <strong style='color:#6366f1;'>{email}</strong>. You can access it anytime."
     return f"""
 <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Thanks!</title><style>{BASE_CSS}</style></head><body><div class="gradient-bg"><div class="container">
     <div class="result-card" style="text-align:center; padding:60px;">
         <h1 style="font-size:2em;">✅ Got it!</h1>
-        <p style="color:#aaa; margin-top:16px; font-size:1.1em;">We saved your report for <strong style="color:#6366f1;">{email}</strong>. You can access it anytime.</p>
+        <p style="color:#aaa; margin-top:16px; font-size:1.1em;">{msg}</p>
         <div style="margin-top:30px;"><a href="/" style="color:#6366f1;">← Grade another website</a></div>
     </div>
 </div></div></body></html>"""

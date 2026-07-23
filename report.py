@@ -321,6 +321,42 @@ def _action_plan(all_results):
         </div>"""
     return f"""<div class="action-plan-list">{items}</div>"""
 
+def _sales_summary(score_data, all_results):
+    """Generate a programmatic sales summary paragraph based on category sub-scores."""
+    cats = [(cat, d["score"]) for cat, d in score_data["categories"].items()]
+    cats.sort(key=lambda x: x[1])  # ascending by score
+    weakest = cats[:2] if len(cats) >= 2 else cats + [("N/A", 0)]
+
+    score = score_data["overall_score"]
+    w1_name, w1_score = weakest[0]
+    w2_name, w2_score = weakest[1] if len(weakest) > 1 else ("N/A", 0)
+
+    if score < 40:
+        text = (
+            f"Your website is struggling to perform. Your biggest issues are in "
+            f"{w1_name} (scoring just {w1_score}%) and {w2_name}. "
+            f"These problems are likely costing you customers every day. I can help you fix these quickly."
+        )
+    elif score < 70:
+        text = (
+            f"Your website has a solid foundation, but there's room to grow. "
+            f"{w1_name} ({w1_score}%) and {w2_name} are holding back your overall score. "
+            f"Addressing these would give you a significant boost."
+        )
+    elif score < 90:
+        text = (
+            f"Your website is performing well! A few targeted improvements in "
+            f"{w1_name} and {w2_name} could push you into the top tier."
+        )
+    else:
+        text = (
+            f"Excellent work — your website is in great shape. "
+            f"I'd recommend regular monitoring to keep it that way."
+        )
+
+    return f'<div class="card"><h2>📊 Summary</h2><p style="font-size:1.05em;line-height:1.7;color:var(--muted);">{text}</p></div>'
+
+
 def generate_report(crawl_result, all_results, score_data, fixes, url):
     grade = score_data["grade"]
     score = score_data["overall_score"]
@@ -331,6 +367,7 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     nap = _nap_table(crawl_result, all_results)
     perf = _perf_table(crawl_result)
     plan = _action_plan(all_results)
+    sales_summary = _sales_summary(score_data, all_results)
     failed_count = sum(1 for r in all_results if not r.passed)
     passed_count = len(all_results) - failed_count
     total_count = len(all_results)
@@ -340,41 +377,6 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     if not date:
         import datetime
         date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
-
-    # Construct clean structured JSON data for AI processing
-    ai_json_payload = {
-        "audit_meta": {
-            "target_url": url,
-            "audit_date": date,
-            "pages_crawled": list(crawl_result.pages.keys()),
-            "overall_score": score,
-            "overall_grade": grade,
-            "health_score": score_data.get("health_score", float(score)),
-            "coverage_score": score_data.get("coverage_score", 100.0),
-            "confidence_score": score_data.get("confidence_score", 100.0),
-            "improvement_potential": score_data.get("improvement_potential", 0.0),
-            "checks_summary": {
-                "total": total_count,
-                "passed": passed_count,
-                "failed": failed_count,
-                "critical_and_high_failed": high_failed_count
-            }
-        },
-        "category_scores": {cat: {"score": d["score"], "weight": d["weight"]} for cat, d in score_data["categories"].items()},
-        "failures": [
-            {
-                "check_id": r.check_id,
-                "check_name": r.check_name,
-                "category": r.category,
-                "severity": r.severity.value,
-                "where_value": r.detail,
-                "why_impact": WHY_MAP.get(r.check_id, ""),
-                "how_to_fix": r.recommendation,
-                "fix_code": r.fix_code
-            }
-            for r in all_results if not r.passed
-        ]
-    }
     
     # SVG circular gauge stroke-dashoffset calculations
     # Circumference = 264. Dashoffset = 264 * (1 - score / 100)
@@ -1250,6 +1252,9 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
       
     </div>
 
+    <!-- Sales Summary -->
+    {SALES_SUMMARY}
+
     <!-- Action Plan Card -->
     <div class="card">
       <h2>📋 Prioritized Action Roadmap</h2>
@@ -1329,20 +1334,6 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     <div class="checks-list" id="checks-list">
       {CHECKS_HTML}
     </div>
-
-    <!-- AI Bridge Payload Card -->
-    <div class="ai-bridge-box">
-      <h3>🤖 Generative AI Integration Bridge</h3>
-      <p>
-        Copy this pre-packaged, machine-readable JSON data payload. Paste it directly into your local LLM chat window (such as ChatGPT, Claude, or Gemini) to execute advanced diagnosis and generate a strategic web recovery plan.
-      </p>
-      <button class="action-btn" id="copy-ai-btn" onclick="copyAuditData()">📋 Copy Audit Payload for AI</button>
-    </div>
-
-    <!-- JSON Storage script tag -->
-    <script id="audit-data-json" type="application/json">
-{AI_JSON_PAYLOAD}
-    </script>
 
     <footer>
       Powered by <strong style="color: var(--orange);">North Web Pro</strong> — Your Guide in the Digital Wilderness
@@ -1465,21 +1456,6 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
       });
     }
 
-    // Copy AI Bridge structured payload
-    function copyAuditData() {
-      const data = document.getElementById('audit-data-json').textContent;
-      navigator.clipboard.writeText(data).then(() => {
-        const btn = document.getElementById('copy-ai-btn');
-        btn.textContent = '✅ Payload Copied!';
-        btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
-        btn.style.boxShadow = '0 4px 15px rgba(16, 185, 129, 0.3)';
-        setTimeout(() => {
-          btn.textContent = '📋 Copy Audit Payload for AI';
-          btn.style.background = 'linear-gradient(135deg, var(--orange) 0%, #ea580c 100%)';
-          btn.style.boxShadow = '0 4px 15px rgba(249, 115, 22, 0.3)';
-        }, 2500);
-      });
-    }
   </script>
 
 </body>
@@ -1509,6 +1485,7 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
         "{MUTED}": MUTED,
         "{CAT_BARS}": cat_bars,
         "{PLAN}": plan,
+        "{SALES_SUMMARY}": sales_summary,
     }
     output = html_template
     for placeholder, value in replacements.items():
@@ -1525,7 +1502,4 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
     output = output.replace("{SITEMAP_TMPL}", sitemap_tmpl)
     output = output.replace("{HTACCESS_TMPL}", htaccess_tmpl)
 
-    # Secure double-check of payload insertion
-    output = output.replace("{AI_JSON_PAYLOAD}", json.dumps(ai_json_payload, indent=2).replace("</", "<\\/"))
-    
     return output
