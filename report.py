@@ -2,7 +2,7 @@
 """
 HTML report generator — self-contained, NWP branded, printable.
 Implements a next-generation dark dashboard with orange/blue brand colors,
-explicit "Where" & "Why" structured outputs, and an AI Bridge payload exporter.
+explicit "Where" & "Why" structured outputs, and a programmatic sales summary.
 """
 import json
 from checks.base import Severity
@@ -1032,55 +1032,6 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
       color: var(--orange);
     }
 
-    /* AI Bridge section */
-    .ai-bridge-box {
-      background: linear-gradient(135deg, rgba(249,115,22,0.05) 0%, rgba(56,189,248,0.05) 100%);
-      border: 1px dashed rgba(56, 189, 248, 0.4);
-      padding: 24px;
-      border-radius: 16px;
-      text-align: center;
-      margin-top: 32px;
-    }
-
-    .ai-bridge-box h3 {
-      font-family: 'Outfit', sans-serif;
-      font-size: 1.20em;
-      color: var(--text);
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    .ai-bridge-box p {
-      font-size: 0.85em;
-      color: var(--muted);
-      margin-bottom: 16px;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    .action-btn {
-      background: linear-gradient(135deg, var(--orange) 0%, #ea580c 100%);
-      border: none;
-      color: var(--bg);
-      font-weight: 700;
-      padding: 12px 24px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 0.9em;
-      box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
-      transition: all 0.2s;
-    }
-
-    .action-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4);
-    }
-
     /* Code Templates Configuration block */
     .config-card {
       background: var(--card);
@@ -1188,7 +1139,7 @@ def generate_report(crawl_result, all_results, score_data, fixes, url):
       .check-card.failed .check-body {
         display: block !important;
       }
-      .copy-btn, .controls-bar, .ai-bridge-box, .copy-btn, .config-tab-headers {
+      .copy-btn, .controls-bar, .copy-btn, .config-tab-headers {
         display: none !important;
       }
       .card:nth-of-type(1) {
